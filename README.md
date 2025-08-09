@@ -1,50 +1,158 @@
-# Building a Remote MCP Server on Cloudflare (Without Auth)
+# Jina AI Remote MCP Server
 
-This example allows you to deploy a remote MCP server that doesn't require authentication on Cloudflare Workers. 
+A remote Model Context Protocol (MCP) server built on Cloudflare Workers that provides access to Jina AI's powerful web services including web reading, screenshot capture, web search, grounding, and embeddings generation.
 
-## Get started: 
+## Features
 
-[![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless)
+🌐 **Web Reading**: Extract clean, structured content from any webpage  
+📸 **Screenshot Capture**: Take high-quality screenshots of web pages  
+🔍 **Web Search**: Perform intelligent web searches with advanced filtering  
+🎯 **Grounding**: Verify and fact-check information against reliable sources  
+🧠 **Embeddings**: Generate semantic embeddings for text content  
+🔧 **Debug Tools**: Built-in API key management and debugging utilities  
 
-This will deploy your MCP server to a URL like: `remote-mcp-server-authless.<your-account>.workers.dev/sse`
+## Quick Start
 
-Alternatively, you can use the command line below to get the remote MCP Server created on your local machine:
+### Deploy to Cloudflare Workers
+
+[![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jina-ai/MCP)
+
+This will deploy your MCP server to a URL like: `jina-mcp-server.<your-account>.workers.dev/sse`
+
+### Local Development
+
 ```bash
-npm create cloudflare@latest -- my-mcp-server --template=cloudflare/ai/demos/remote-mcp-authless
+# Clone the repository
+git clone https://github.com/jina-ai/MCP.git
+cd MCP
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
 
-## Customizing your MCP Server
+## Configuration
 
-To add your own [tools](https://developers.cloudflare.com/agents/model-context-protocol/tools/) to the MCP server, define each tool inside the `init()` method of `src/index.ts` using `this.server.tool(...)`. 
+### Environment Variables
 
-## Connect to Cloudflare AI Playground
+Set your Jina AI API key in your Cloudflare Workers environment:
 
-You can connect to your MCP server from the Cloudflare AI Playground, which is a remote MCP client:
+```bash
+# Using Wrangler CLI
+wrangler secret put JINA_API_KEY
+```
 
-1. Go to https://playground.ai.cloudflare.com/
-2. Enter your deployed MCP server URL (`remote-mcp-server-authless.<your-account>.workers.dev/sse`)
-3. You can now use your MCP tools directly from the playground!
+Or add it to your `wrangler.toml`:
 
-## Connect Claude Desktop to your MCP server
+```toml
+[vars]
+JINA_API_KEY = "your-jina-api-key-here"
+```
 
-You can also connect to your remote MCP server from local MCP clients, by using the [mcp-remote proxy](https://www.npmjs.com/package/mcp-remote). 
+### Available Tools
 
-To connect to your MCP server from Claude Desktop, follow [Anthropic's Quickstart](https://modelcontextprotocol.io/quickstart/user) and within Claude Desktop go to Settings > Developer > Edit Config.
+The server provides the following MCP tools:
 
-Update with this configuration:
+- **`show_api_key`**: Debug tool to verify API key configuration
+- **`capture_screenshot_url`**: Capture screenshots of web pages
+- **`read_url`**: Extract clean content from web pages
+- **`search_web`**: Perform web searches with advanced options
+- **`get_grounding`**: Fact-check and verify information
+- **`generate_embeddings`**: Create semantic embeddings for text
+
+## Connect to Claude Desktop
+
+To use this MCP server with Claude Desktop, add the following configuration to your Claude settings:
+
+1. Go to Settings > Developer > Edit Config in Claude Desktop
+2. Add this configuration:
 
 ```json
 {
   "mcpServers": {
-    "calculator": {
+    "jina-ai": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://localhost:8787/sse"  // or remote-mcp-server-authless.your-account.workers.dev/sse
-      ]
+        "https://jina-mcp-server.your-account.workers.dev/sse"
+      ],
+      "env": {
+        "JINA_API_KEY": "your-jina-api-key-here"
+      }
     }
   }
 }
 ```
 
-Restart Claude and you should see the tools become available. 
+3. Restart Claude Desktop
+
+## Connect to Cloudflare AI Playground
+
+1. Go to https://playground.ai.cloudflare.com/
+2. Enter your deployed MCP server URL
+3. Start using Jina AI tools directly from the playground!
+
+## API Documentation
+
+For detailed information about Jina AI's APIs, visit:
+- [Jina AI Documentation](https://docs.jina.ai/)
+- [Reader API](https://docs.jina.ai/reader/)
+- [Search API](https://docs.jina.ai/search/)
+- [Embeddings API](https://docs.jina.ai/embeddings/)
+
+## Development
+
+### Project Structure
+
+```
+src/
+├── index.ts              # Main MCP server setup
+├── tools/
+│   └── jina-tools.ts     # Jina AI tool implementations
+└── utils/
+    ├── api-error-handler.ts  # API error handling utilities
+    └── url-normalizer.ts     # URL processing utilities
+```
+
+### Adding Custom Tools
+
+To add your own tools to the MCP server, modify the `registerJinaTools()` function in `src/tools/jina-tools.ts`:
+
+```typescript
+server.tool(
+  "your_tool_name",
+  "Description of what your tool does",
+  {
+    // Define your tool's input schema using Zod
+    parameter: z.string().describe("Parameter description")
+  },
+  async ({ parameter }) => {
+    // Implement your tool logic here
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: "Your tool's response"
+        }
+      ]
+    };
+  }
+);
+```
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
+
+## Support
+
+For support and questions:
+- [Jina AI Community](https://discord.jina.ai/)
+- [GitHub Issues](https://github.com/jina-ai/MCP/issues)
+- [Jina AI Documentation](https://docs.jina.ai/)
