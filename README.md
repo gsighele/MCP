@@ -12,9 +12,7 @@ The server provides the following MCP tools:
 | `search_arxiv` | Search academic papers and preprints on arXiv repository | Yes |
 | `search_image` | Search for images across the web (similar to Google Images) | Yes |
 
-*\* Optional tools work without an API key but have [rate limits](https://jina.ai/api-dashboard/rate-limit). For higher rate limits and better performance, use a Jina API key.*
-
-You can get a free Jina API key from [https://jina.ai](https://jina.ai)
+> Optional tools work without an API key but have [rate limits](https://jina.ai/api-dashboard/rate-limit). For higher rate limits and better performance, use a Jina API key. You can get a free Jina API key from [https://jina.ai](https://jina.ai)
 
 
 ## Developer Guide
