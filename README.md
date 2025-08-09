@@ -53,9 +53,6 @@ To use this MCP server with Claude Desktop, add the following configuration to y
         "mcp-remote",
         "https://jina-mcp-server.your-account.workers.dev/sse"
       ],
-      "env": {
-        "JINA_API_KEY": "your-jina-api-key-here"
-      }
     }
   }
 }
