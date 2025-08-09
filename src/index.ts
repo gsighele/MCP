@@ -8,11 +8,6 @@ export class MyMCP extends McpAgent {
 		name: "Jina AI Offical MCP Server",
 		description: "Official MCP for Jina AI API.",
 		version: "1.0.0",
-		author: "Jina AI",
-    license: "MIT",
-    homepage: "https://jina.ai",
-    tags: ["search", "web", "arxiv", "images", "screenshots", "research", "jina-ai"],
-    capabilities: ["tools"]
 	});
 	
 
