@@ -1,6 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerJinaTools } from "./tools/jina-tools.js";
+import { stringify as yamlStringify } from "yaml";
 
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent {
@@ -35,6 +36,42 @@ export default {
 			return MyMCP.serve("/mcp").fetch(request, env, ctx);
 		}
 
-		return new Response("Not found", { status: 404 });
+		// Handle root path with helpful information
+		if (url.pathname === "/") {
+			const info = {
+				name: "Jina AI Official MCP Server",
+				description: "Official Model Context Protocol server for Jina AI APIs",
+				version: "1.0.0",
+				endpoints: {
+					sse: "/sse - Server-Sent Events endpoint (recommended)",
+					mcp: "/mcp - Standard JSON-RPC endpoint"
+				},
+				tools: [
+					"read_url - Extract clean content from web pages",
+					"capture_screenshot_url - Capture webpage screenshots", 
+					"search_web - Search the web for current information",
+					"search_arxiv - Search academic papers on arXiv",
+					"search_image - Search for images across the web"
+				],
+				documentation: "https://github.com/jina-ai/MCP",
+				api_key: "Get your free API key at https://jina.ai"
+			};
+			
+			return new Response(yamlStringify(info), {
+				headers: { "Content-Type": "text/yaml" },
+				status: 200
+			});
+		}
+
+		// Return helpful 404 for unknown paths
+		return new Response(yamlStringify({
+			error: "Endpoint not found",
+			message: `Path '${url.pathname}' is not available`,
+			available_endpoints: ["/", "/sse", "/mcp"],
+			suggestion: "Use /sse for MCP client connections"
+		}), {
+			headers: { "Content-Type": "text/yaml" },
+			status: 404
+		});
 	},
 };
