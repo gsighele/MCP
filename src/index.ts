@@ -47,17 +47,17 @@ export default {
 				description: "Official Model Context Protocol server for Jina AI APIs",
 				version: SERVER_VERSION,
 				package_name: SERVER_NAME,
-				example: `
-				{
-				  "mcpServers": {
-					"jina-mcp-server": {
-					  "url": "https://mcp.jina.ai/sse",
-					  "headers": {
-						"Authorization": "Bearer your_jina_api_key" // optional
-					  }
-					}
-				  }
-				}				
+				usage: `
+{
+	"mcpServers": {
+	"jina-mcp-server": {
+		"url": "https://mcp.jina.ai/sse",
+		"headers": {
+		"Authorization": "Bearer your_jina_api_key" // optional
+		}
+	}
+	}
+}				
 `,
 				endpoints: {
 					sse: "/sse - Server-Sent Events endpoint (recommended)",
@@ -71,7 +71,7 @@ export default {
 					"search_image - Search for images across the web"
 				],
 				source_code: "https://github.com/jina-ai/MCP",
-				api_key: "Get your free API key at https://jina.ai"
+				api_key: "https://jina.ai/api-dashboard/"
 			};
 			
 			return new Response(yamlStringify(info), {
