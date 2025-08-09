@@ -3,12 +3,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerJinaTools } from "./tools/jina-tools.js";
 import { stringify as yamlStringify } from "yaml";
 
+// Build-time constants (can be replaced by build tools)
+const SERVER_VERSION = "1.0.0"; // This could be replaced by CI/CD
+const SERVER_NAME = "jina-mcp";
+
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent {
 	server = new McpServer({
-		name: "Jina AI Offical MCP Server",
+		name: "Jina AI Official MCP Server",
 		description: "Official MCP for Jina AI API.",
-		version: "1.0.0",
+		version: SERVER_VERSION,
 	});
 	
 
@@ -41,7 +45,20 @@ export default {
 			const info = {
 				name: "Jina AI Official MCP Server",
 				description: "Official Model Context Protocol server for Jina AI APIs",
-				version: "1.0.0",
+				version: SERVER_VERSION,
+				package_name: SERVER_NAME,
+				example: `
+				{
+				  "mcpServers": {
+					"jina-mcp-server": {
+					  "url": "https://mcp.jina.ai/sse",
+					  "headers": {
+						"Authorization": "Bearer your_jina_api_key" // optional
+					  }
+					}
+				  }
+				}				
+`,
 				endpoints: {
 					sse: "/sse - Server-Sent Events endpoint (recommended)",
 					mcp: "/mcp - Standard JSON-RPC endpoint"
@@ -53,7 +70,7 @@ export default {
 					"search_arxiv - Search academic papers on arXiv",
 					"search_image - Search for images across the web"
 				],
-				documentation: "https://github.com/jina-ai/MCP",
+				source_code: "https://github.com/jina-ai/MCP",
 				api_key: "Get your free API key at https://jina.ai"
 			};
 			

@@ -2,6 +2,19 @@
 
 A remote Model Context Protocol (MCP) server that provides access to Jina Reader, Embeddings and Reranker APIs including URL-to-markdown, web search, image search, and embeddings/reranker toolings.
 
+```json
+{
+  "mcpServers": {
+    "jina-mcp-server": {
+      "url": "https://mcp.jina.ai/sse",
+      "headers": {
+        "Authorization": "Bearer your_jina_api_key" // optional
+      }
+    }
+  }
+}
+```
+
 The server provides the following MCP tools:
 
 | Tool | Description | Is Jina API Key Required? |
