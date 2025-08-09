@@ -50,29 +50,6 @@ npm install
 npm run start
 ```
 
-## Connect to Claude Desktop
-
-To use this MCP server with Claude Desktop, add the following configuration to your Claude settings:
-
-1. Go to Settings > Developer > Edit Config in Claude Desktop
-2. Add this configuration:
-
-```json
-{
-  "mcpServers": {
-    "jina-mcp-server": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://jina-mcp-server.your-account.workers.dev/sse"
-      ],
-    }
-  }
-}
-```
-
-3. Restart Claude Desktop
-
 
 ## License
 

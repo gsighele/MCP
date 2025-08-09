@@ -140,7 +140,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 		"read_url",
 		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data. Returns clean markdown text plus optional metadata like links and images.",
 		{ 
-			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to read and convert (e.g., 'https://example.com/article')"),
+			url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article')"),
 			withAllLinks: z.boolean().optional().describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
 			withAllImages: z.boolean().optional().describe("Set to true to extract and return all images found on the page as structured data")
 		},
@@ -207,14 +207,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const responseContent = [];
-				
-				// Add main content
-				if (data.data.content) {
-					responseContent.push({
-						type: "text" as const,
-						text: String(data.data.content),
-					});
-				}
+			
 
 				// Add structured data as JSON if requested via parameters
 				const structuredData: any = {};
@@ -243,7 +236,15 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				if (Object.keys(structuredData).length > 0) {
 					responseContent.push({
 						type: "text" as const,
-						text: JSON.stringify(structuredData, null, 2),
+						text: yamlStringify(structuredData),
+					});
+				}
+
+				// Add main content
+				if (data.data.content) {
+					responseContent.push({
+						type: "text" as const,
+						text: String(data.data.content),
 					});
 				}
 
