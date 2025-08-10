@@ -67,7 +67,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const data = await response.json() as any;
-				
+
 				// Fetch and return the screenshot as base64-encoded image
 				const imageUrl = data.data.screenshotUrl || data.data.pageshotUrl;
 				if (imageUrl) {
@@ -75,15 +75,15 @@ export function registerJinaTools(server: any, getProps: () => any) {
 						// Download the image from the URL
 						const imageResponse = await fetch(imageUrl);
 						if (!imageResponse.ok) {
-													return {
-							content: [
-								{
-									type: "text" as const,
-									text: `Error: Failed to download screenshot from ${imageUrl}`,
-								},
-							],
-							isError: true,
-						};
+							return {
+								content: [
+									{
+										type: "text" as const,
+										text: `Error: Failed to download screenshot from ${imageUrl}`,
+									},
+								],
+								isError: true,
+							};
 						}
 
 						// Convert to base64
@@ -139,7 +139,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	server.tool(
 		"read_url",
 		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data. Returns clean markdown text plus optional metadata like links and images.",
-		{ 
+		{
 			url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article')"),
 			withAllLinks: z.boolean().optional().describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
 			withAllImages: z.boolean().optional().describe("Set to true to extract and return all images found on the page as structured data")
@@ -193,7 +193,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const data = await response.json() as any;
-				
+
 				if (!data.data) {
 					return {
 						content: [
@@ -207,15 +207,15 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const responseContent = [];
-			
+
 
 				// Add structured data as JSON if requested via parameters
 				const structuredData: any = {};
-				
+
 				if (data.data.url) {
 					structuredData.url = data.data.url;
 				}
-				
+
 				if (data.data.title) {
 					structuredData.title = data.data.title;
 				}
@@ -281,7 +281,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 		async ({ query, num = 30 }: { query: string; num?: number }) => {
 			try {
 				const props = getProps();
-				
+
 				const tokenError = checkBearerToken(props.bearerToken);
 				if (tokenError) {
 					return tokenError;
@@ -305,7 +305,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const data = await response.json() as any;
-				
+
 
 				return {
 					content: [
@@ -331,7 +331,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 	// Search Arxiv tool - search arxiv papers using Jina Search API
 	server.tool(
-		"search_arxiv", 
+		"search_arxiv",
 		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc. Returns academic papers with URLs, titles, abstracts, and metadata.",
 		{
 			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
@@ -340,7 +340,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 		async ({ query, num = 30 }: { query: string; num?: number }) => {
 			try {
 				const props = getProps();
-				
+
 				const tokenError = checkBearerToken(props.bearerToken);
 				if (tokenError) {
 					return tokenError;
@@ -365,7 +365,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				const data = await response.json() as any;
-			
+
 
 				return {
 					content: [
@@ -399,7 +399,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 		async ({ query }: { query: string }) => {
 			try {
 				const props = getProps();
-				
+
 				const tokenError = checkBearerToken(props.bearerToken);
 				if (tokenError) {
 					return tokenError;
@@ -420,6 +420,79 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				if (!response.ok) {
 					return handleApiError(response, "Image search");
+				}
+
+				const data = await response.json() as any;
+
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: yamlStringify(data.results),
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+						},
+					],
+					isError: true,
+				};
+			}
+		},
+	);
+
+	// Sort by relevance tool - rerank documents using Jina reranker API
+	server.tool(
+		"sort_by_relevance",
+		"Rerank a list of documents by relevance to a query using Jina Reranker API. Use this when you have multiple documents and want to sort them by how well they match a specific query or topic. Perfect for document retrieval, content filtering, or finding the most relevant information from a collection. Returns documents sorted by relevance score.",
+		{
+			query: z.string().describe("The query or topic to rank documents against (e.g., 'machine learning algorithms', 'climate change solutions')"),
+			documents: z.array(z.string()).describe("Array of document texts to rerank by relevance"),
+			top_n: z.number().optional().describe("Maximum number of top results to return (default: all documents)")
+		},
+		async ({ query, documents, top_n }: { query: string; documents: string[]; top_n?: number }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				if (documents.length === 0) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: "No documents provided for reranking",
+							},
+						],
+						isError: true,
+					};
+				}
+
+				const response = await fetch('https://api.jina.ai/v1/rerank', {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${props.bearerToken}`,
+					},
+					body: JSON.stringify({
+						model: 'jina-reranker-v2-base-multilingual',
+						query,
+						top_n: top_n || documents.length,
+						documents
+					}),
+				});
+
+				if (!response.ok) {
+					return handleApiError(response, "Document reranking");
 				}
 
 				const data = await response.json() as any;

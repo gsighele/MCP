@@ -44,6 +44,7 @@ This MCP server provides the following tools:
 | `search_web` | Search the entire web for current information and news | Yes |
 | `search_arxiv` | Search academic papers and preprints on arXiv repository | Yes |
 | `search_image` | Search for images across the web (similar to Google Images) | Yes |
+| `sort_by_relevance` | Rerank documents by relevance to a query using Jina Reranker API | Yes |
 
 > Optional tools work without an API key but have [rate limits](https://jina.ai/api-dashboard/rate-limit). For higher rate limits and better performance, use a Jina API key. You can get a free Jina API key from [https://jina.ai](https://jina.ai)
 
@@ -69,8 +70,3 @@ npm install
 # Start development server
 npm run start
 ```
-
-
-## License
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
