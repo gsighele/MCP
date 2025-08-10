@@ -2,6 +2,7 @@ import { z } from "zod";
 import { stringify as yamlStringify } from "yaml";
 import { normalizeUrl } from "../utils/url-normalizer.js";
 import { handleApiError, checkBearerToken } from "../utils/api-error-handler.js";
+import { lazyGreedySelection, lazyGreedySelectionWithSaturation } from "../utils/submodular-optimization.js";
 
 export function registerJinaTools(server: any, getProps: () => any) {
 	// Show API key tool - returns the bearer token from request headers
@@ -502,6 +503,130 @@ export function registerJinaTools(server: any, getProps: () => any) {
 						{
 							type: "text" as const,
 							text: yamlStringify(data.results),
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+						},
+					],
+					isError: true,
+				};
+			}
+		},
+	);
+
+	// Deduplicate strings tool - get top-k unique strings using embeddings and submodular optimization
+	server.tool(
+		"deduplicate_strings",
+		"Get top-k semantically unique strings from a list using Jina embeddings and submodular optimization. Use this when you have many similar strings and want to select the most diverse subset that covers the semantic space. Perfect for removing duplicates, selecting representative samples, or finding diverse content. Returns the selected strings with their indices.",
+		{
+			strings: z.array(z.string()).describe("Array of strings to deduplicate"),
+			k: z.number().optional().describe("Number of unique strings to return. If not provided, automatically finds optimal k using saturation point detection")
+		},
+		async ({ strings, k }: { strings: string[]; k?: number }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				if (strings.length === 0) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: "No strings provided for deduplication",
+							},
+						],
+						isError: true,
+					};
+				}
+
+				if (k !== undefined && (k <= 0 || k > strings.length)) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: `Invalid k value: ${k}. Must be between 1 and ${strings.length}`,
+							},
+						],
+						isError: true,
+					};
+				}
+
+				// Get embeddings from Jina API
+				const response = await fetch('https://api.jina.ai/v1/embeddings', {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${props.bearerToken}`,
+					},
+					body: JSON.stringify({
+						model: 'jina-embeddings-v3',
+						task: 'text-matching',
+						input: strings
+					}),
+				});
+
+				if (!response.ok) {
+					return handleApiError(response, "Getting embeddings");
+				}
+
+				const data = await response.json() as any;
+
+				if (!data.data || !Array.isArray(data.data)) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: "Invalid response format from embeddings API",
+							},
+						],
+						isError: true,
+					};
+				}
+
+				// Extract embeddings
+				const embeddings = data.data.map((item: any) => item.embedding);
+
+				// Use submodular optimization to select diverse strings
+				let selectedIndices: number[];
+				let optimalK: number;
+				let values: number[];
+
+				if (k !== undefined) {
+					// Use specified k
+					selectedIndices = lazyGreedySelection(embeddings, k);
+					values = [];
+				} else {
+					// Automatically find optimal k using saturation point
+					const result = lazyGreedySelectionWithSaturation(embeddings);
+					selectedIndices = result.selected;
+					values = result.values;
+				}
+
+				// Get the selected strings
+				const selectedStrings = selectedIndices.map(idx => ({
+					index: idx,
+					text: strings[idx]
+				}));
+
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: yamlStringify({
+								// values: values,
+								deduplicated_strings: selectedStrings,
+							}),
 						},
 					],
 				};
