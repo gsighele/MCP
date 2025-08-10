@@ -2,20 +2,40 @@
 
 A remote Model Context Protocol (MCP) server that provides access to Jina Reader, Embeddings and Reranker APIs including URL-to-markdown, web search, image search, and embeddings/reranker toolings.
 
+For client that supports remote MCP server:
 ```json
 {
   "mcpServers": {
     "jina-mcp-server": {
       "url": "https://mcp.jina.ai/sse",
       "headers": {
-        "Authorization": "Bearer your_jina_api_key" // optional
+        "Authorization": "Bearer ${JINA_API_KEY}" // optional
       }
     }
   }
 }
 ```
 
-The server provides the following MCP tools:
+For client that does not support remote MCP server yet (Claude Desktop), you need [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) local proxy to connect to the remote MCP server.
+
+```json
+{
+  "mcpServers": {
+    "math": {
+      "command": "npx",
+      "args": [
+        "mcp-remote", 
+        "https://mcp.jina.ai/sse"
+        // optional bearer token
+        "--header",
+        "Authorization: Bearer ${JINA_API_KEY}"
+        ]
+    }
+  }
+}
+```
+
+This MCP server provides the following tools:
 
 | Tool | Description | Is Jina API Key Required? |
 |-----------|-------------|----------------------|
