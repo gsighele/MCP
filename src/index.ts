@@ -14,7 +14,7 @@ export class MyMCP extends McpAgent {
 		description: "Official MCP for Jina AI API.",
 		version: SERVER_VERSION,
 	});
-	
+
 
 	async init() {
 		// Register all Jina AI tools
@@ -25,7 +25,7 @@ export class MyMCP extends McpAgent {
 export default {
 	fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
-		
+
 		// Extract bearer token from Authorization header
 		const authHeader = request.headers.get("Authorization");
 		if (authHeader?.startsWith("Bearer ")) {
@@ -65,15 +65,17 @@ export default {
 				},
 				tools: [
 					"read_url - Extract clean content from web pages",
-					"capture_screenshot_url - Capture webpage screenshots", 
+					"capture_screenshot_url - Capture webpage screenshots",
 					"search_web - Search the web for current information",
 					"search_arxiv - Search academic papers on arXiv",
-					"search_image - Search for images across the web"
+					"search_image - Search for images across the web",
+					"sort_by_relevance - Rerank documents by relevance to a query",
+					"deduplicate_strings - Get top-k semantically unique strings"
 				],
 				source_code: "https://github.com/jina-ai/MCP",
-				api_key: "https://jina.ai/api-dashboard/"
+				get_api_key: "https://jina.ai/api-dashboard/"
 			};
-			
+
 			return new Response(yamlStringify(info), {
 				headers: { "Content-Type": "text/yaml" },
 				status: 200
