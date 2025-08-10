@@ -21,7 +21,7 @@ For client that does not support remote MCP server yet (Claude Desktop), you nee
 ```json
 {
   "mcpServers": {
-    "math": {
+    "jina-mcp-server": {
       "command": "npx",
       "args": [
         "mcp-remote", 
