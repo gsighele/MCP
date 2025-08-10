@@ -93,11 +93,9 @@ export function lazyGreedySelection(embeddings: number[][], k: number): number[]
 
 export function lazyGreedySelectionWithSaturation(
     embeddings: number[][],
-    maxK?: number,
     threshold: number = 1e-2
 ): { selected: number[], optimalK: number, values: number[] } {
     const n = embeddings.length;
-    const maxKValue = maxK ?? Math.min(n, 90);
 
     const selected: number[] = [];
     const remaining = new Set(Array.from({ length: n }, (_, i) => i));
@@ -128,7 +126,7 @@ export function lazyGreedySelectionWithSaturation(
     pq.sort((a, b) => a[0] - b[0]);
 
     let earlyStopK: number | null = null;
-    for (let iteration = 0; iteration < Math.min(maxKValue, n); iteration++) {
+    for (let iteration = 0; iteration < n; iteration++) {
         while (pq.length > 0) {
             const [negGain, lastUpdated, bestIdx] = pq.shift()!;
 
