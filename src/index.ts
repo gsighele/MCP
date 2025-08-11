@@ -70,7 +70,8 @@ export default {
 					"search_arxiv - Search academic papers on arXiv",
 					"search_image - Search for images across the web",
 					"sort_by_relevance - Rerank documents by relevance to a query",
-					"deduplicate_strings - Get top-k semantically unique strings"
+					"deduplicate_strings - Get top-k semantically unique strings",
+					"deduplicate_images - Get top-k semantically unique images as PNG base64"
 				],
 				source_code: "https://github.com/jina-ai/MCP",
 				get_api_key: "https://jina.ai/api-dashboard/"

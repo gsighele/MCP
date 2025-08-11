@@ -526,7 +526,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 		"Get top-k semantically unique strings from a list using Jina embeddings and submodular optimization. Use this when you have many similar strings and want to select the most diverse subset that covers the semantic space. Perfect for removing duplicates, selecting representative samples, or finding diverse content. Returns the selected strings with their indices.",
 		{
 			strings: z.array(z.string()).describe("Array of strings to deduplicate"),
-			k: z.number().optional().describe("Number of unique strings to return. If not provided, automatically finds optimal k using saturation point detection")
+			k: z.number().optional().describe("Number of unique strings to return. If not provided, automatically finds optimal k by looking at diminishing return")
 		},
 		async ({ strings, k }: { strings: string[]; k?: number }) => {
 			try {
@@ -630,6 +630,147 @@ export function registerJinaTools(server: any, getProps: () => any) {
 						},
 					],
 				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+						},
+					],
+					isError: true,
+				};
+			}
+		},
+	);
+
+	// Deduplicate images tool - get top-k unique images using image embeddings and submodular optimization
+	server.tool(
+		"deduplicate_images",
+		"Get top-k semantically unique images (URLs or base64-encoded) using Jina CLIP v2 embeddings and submodular optimization. Use this when you have many visually similar images and want the most diverse subset. Returns selected images as PNG base64-encoded images.",
+		{
+			images: z.array(z.string()).describe("Array of image inputs to deduplicate. Each item can be either an HTTP(S) URL or a raw base64-encoded image string (without data URI prefix)."),
+			k: z.number().optional().describe("Number of unique images to return. If not provided, automatically finds optimal k by looking at diminishing return"),
+		},
+		async ({ images, k }: { images: string[]; k?: number }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				if (images.length === 0) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: "No images provided for deduplication",
+							},
+						],
+						isError: true,
+					};
+				}
+
+				if (k !== undefined && (k <= 0 || k > images.length)) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: `Invalid k value: ${k}. Must be between 1 and ${images.length}`,
+							},
+						],
+						isError: true,
+					};
+				}
+
+				// Prepare input for image embeddings API
+				const embeddingInput = images.map((img) => ({ image: img }));
+
+				// Get image embeddings from Jina API using CLIP v2
+				const response = await fetch('https://api.jina.ai/v1/embeddings', {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${props.bearerToken}`,
+					},
+					body: JSON.stringify({
+						model: 'jina-clip-v2',
+						input: embeddingInput,
+					}),
+				});
+
+				if (!response.ok) {
+					return handleApiError(response, "Getting image embeddings");
+				}
+
+				const data = await response.json() as any;
+
+				if (!data.data || !Array.isArray(data.data)) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: "Invalid response format from embeddings API",
+							},
+						],
+						isError: true,
+					};
+				}
+
+				// Extract embeddings
+				const embeddings = data.data.map((item: any) => item.embedding);
+
+				// Use submodular optimization to select diverse images
+				let selectedIndices: number[];
+				let values: number[];
+
+				if (k !== undefined) {
+					selectedIndices = lazyGreedySelection(embeddings, k);
+					values = [];
+				} else {
+					const result = lazyGreedySelectionWithSaturation(embeddings);
+					selectedIndices = result.selected;
+					values = result.values;
+				}
+
+				// Get the selected images
+				const selectedImages = selectedIndices.map((idx) => ({ index: idx, source: images[idx] }));
+
+
+				const contentItems: Array<{ type: 'image'; data: string; mimeType?: string } | { type: 'text'; text: string }> = [];
+
+				for (const { index, source } of selectedImages) {
+					try {
+						if (/^https?:\/\//i.test(source)) {
+							// Try to leverage Cloudflare Image Resizing to transcode to PNG when available
+							let imgResp = await fetch(source, {
+								// @ts-ignore
+								cf: { image: { format: 'png' } }
+							} as any);
+							if (!imgResp.ok) {
+								// Fallback to plain fetch if resizing is not available
+								imgResp = await fetch(source);
+							}
+							if (!imgResp.ok) {
+								contentItems.push({ type: 'text', text: `Failed to download image at index ${index}: HTTP ${imgResp.status}` });
+								continue;
+							}
+							const arrayBuf = await imgResp.arrayBuffer();
+							const base64Data = Buffer.from(arrayBuf).toString('base64');
+							contentItems.push({ type: 'image', data: base64Data, mimeType: 'image/png' });
+						} else {
+							// Treat as raw base64 without data URI; return as PNG by contract
+							contentItems.push({ type: 'image', data: source, mimeType: 'image/png' });
+						}
+					} catch (e) {
+						contentItems.push({ type: 'text', text: `Error processing image at index ${index}: ${e instanceof Error ? e.message : String(e)}` });
+					}
+				}
+
+				return { content: contentItems.length > 0 ? contentItems : [{ type: 'text' as const, text: 'No images to return' }] };
 			} catch (error) {
 				return {
 					content: [
