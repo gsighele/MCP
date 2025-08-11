@@ -53,7 +53,7 @@ export default {
 	"jina-mcp-server": {
 		"url": "https://mcp.jina.ai/sse",
 		"headers": {
-		"Authorization": "Bearer your_jina_api_key" // optional
+		"Authorization": "Bearer \${JINA_API_KEY}" // optional
 		}
 	}
 	}
