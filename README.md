@@ -52,6 +52,16 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
 }
 ```
 
+## Troubleshooting
+
+### I got stuck in a tool calling loop - what happened?
+
+This is a common issue with LMStudio when the default context window is 4096 and you're using a thinking model like `gpt-oss-120b` or `qwen3-4b-thinking`. As the thinking and tool calling continue, once you hit the context window limit, the AI starts losing track of the beginning of the task. That's how it gets trapped in this rolling context window.
+
+The solution is to load the model with enough context length to contain the full tool calling chain and thought process.
+
+![set long enough context](/.readme/image.png)
+
 
 ## Developer Guide
 
