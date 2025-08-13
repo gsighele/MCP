@@ -29,7 +29,12 @@ export default {
 		// Extract bearer token from Authorization header
 		const authHeader = request.headers.get("Authorization");
 		if (authHeader?.startsWith("Bearer ")) {
-			ctx.props = { bearerToken: authHeader.substring(7) || env.JINA_API_KEY };
+			ctx.props = { bearerToken: authHeader.substring(7) };
+		}
+
+		// if no bearer token add a debug one from env 
+		if (!ctx.props.bearerToken && env.JINA_API_KEY) {
+			ctx.props.bearerToken = env.JINA_API_KEY;
 		}
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {

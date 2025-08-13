@@ -1,5 +1,8 @@
 # Jina AI Remote MCP Server
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=jina-mcp-server&config=eyJ1cmwiOiJodHRwczovL21jcC5qaW5hLmFpL3NzZSIsImhlYWRlcnMiOnsiQXV0aG9yaXphdGlvbiI6IkJlYXJlciBqaW5hXzQ5NzM0MjYwOTRkOTRkNmFhMGQwNGU3MDFlMGFkZTZkRjNBU0dzRE1ibjlfUm15MlBVYTZPY0ItR2xVRiJ9fQ%3D%3D)
+[![Add MCP Server jina-mcp-server to LM Studio](https://files.lmstudio.ai/deeplink/mcp-install-light.svg)](https://lmstudio.ai/install-mcp?name=jina-mcp-server&config=eyJ1cmwiOiJodHRwczovL21jcC5qaW5hLmFpL3NzZSIsImhlYWRlcnMiOnsiQXV0aG9yaXphdGlvbiI6IkJlYXJlciBqaW5hXzQ5NzM0MjYwOTRkOTRkNmFhMGQwNGU3MDFlMGFkZTZkRjNBU0dzRE1ibjlfUm15MlBVYTZPY0ItR2xVRiJ9fQ%3D%3D)
+
 A remote Model Context Protocol (MCP) server that provides access to Jina Reader, Embeddings and Reranker APIs with a suite of URL-to-markdown, web search, image search, and embeddings/reranker tools:
 
 | Tool | Description | Is Jina API Key Required? |
