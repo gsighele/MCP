@@ -32,7 +32,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Screenshot tool - captures web page screenshots
 	server.tool(
 		"capture_screenshot_url",
-		"Capture high-quality screenshots of web pages. Use this tool when you need to visually inspect a website, take a snapshot for analysis, or show users what a webpage looks like.",
+		"Capture high-quality screenshots of web pages in base64 encoded JPEG format. Use this tool when you need to visually inspect a website, take a snapshot for analysis, or show users what a webpage looks like.",
 		{
 			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to capture (e.g., 'https://example.com')"),
 			firstScreenOnly: z.boolean().optional().describe("Set to true for a single screen capture (faster), false for full page capture including content below the fold (default: false)"),
@@ -332,10 +332,10 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Search Image tool - search for images on the web using Jina Search API
 	server.tool(
 		"search_image",
-		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources.",
+		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources. Images are returned by default as small base64-encoded JPEG images.",
 		{
 			query: z.string().describe("Image search terms describing what you want to find (e.g., 'sunset over mountains', 'vintage car illustration', 'data visualization chart')"),
-			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata instead of downloading images as base64 (default: false)")
+			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata. By default, images are downloaded as base64 and returned as renderd images.")
 		},
 		async ({ query, return_url = false }: { query: string; return_url?: boolean }) => {
 			try {
