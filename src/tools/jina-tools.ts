@@ -3,8 +3,15 @@ import { stringify as yamlStringify } from "yaml";
 import { normalizeUrl } from "../utils/url-normalizer.js";
 import { handleApiError, checkBearerToken } from "../utils/api-error-handler.js";
 import { lazyGreedySelection, lazyGreedySelectionWithSaturation } from "../utils/submodular-optimization.js";
+import { downloadImages } from "../utils/image-downloader.js";
 
 export function registerJinaTools(server: any, getProps: () => any) {
+	// Helper function to create error responses
+	const createErrorResponse = (message: string) => ({
+		content: [{ type: "text" as const, text: message }],
+		isError: true,
+	});
+
 	// Show API key tool - returns the bearer token from request headers
 	server.tool(
 		"show_api_key",
@@ -14,23 +21,10 @@ export function registerJinaTools(server: any, getProps: () => any) {
 			const props = getProps();
 			const token = props.bearerToken as string;
 			if (!token) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: "No bearer token found in request",
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse("No bearer token found in request");
 			}
 			return {
-				content: [
-					{
-						type: "text" as const,
-						text: token,
-					},
-				],
+				content: [{ type: "text" as const, text: token }],
 			};
 		},
 	);
@@ -38,12 +32,13 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Screenshot tool - captures web page screenshots
 	server.tool(
 		"capture_screenshot_url",
-		"Capture high-quality screenshots of web pages. Use this tool when you need to visually inspect a website, take a snapshot for analysis, or show users what a webpage looks like. Returns the screenshot as a base64-encoded PNG image that can be displayed directly.",
+		"Capture high-quality screenshots of web pages. Use this tool when you need to visually inspect a website, take a snapshot for analysis, or show users what a webpage looks like.",
 		{
 			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to capture (e.g., 'https://example.com')"),
-			firstScreenOnly: z.boolean().optional().describe("Set to true for a single screen capture (faster), false for full page capture including content below the fold (default: false)")
+			firstScreenOnly: z.boolean().optional().describe("Set to true for a single screen capture (faster), false for full page capture including content below the fold (default: false)"),
+			return_url: z.boolean().optional().describe("Set to true to return screenshot URLs instead of downloading images as base64 (default: false)")
 		},
-		async ({ url, firstScreenOnly }: { url: string; firstScreenOnly?: boolean }) => {
+		async ({ url, firstScreenOnly, return_url = false }: { url: string; firstScreenOnly?: boolean; return_url?: boolean }) => {
 			try {
 				const props = getProps();
 				const headers: Record<string, string> = {
@@ -69,69 +64,42 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				const data = await response.json() as any;
 
-				// Fetch and return the screenshot as base64-encoded image
+				// Get the screenshot URL from the response
 				const imageUrl = data.data.screenshotUrl || data.data.pageshotUrl;
-				if (imageUrl) {
-					try {
-						// Download the image from the URL
-						const imageResponse = await fetch(imageUrl);
-						if (!imageResponse.ok) {
-							return {
-								content: [
-									{
-										type: "text" as const,
-										text: `Error: Failed to download screenshot from ${imageUrl}`,
-									},
-								],
-								isError: true,
-							};
-						}
-
-						// Convert to base64
-						const imageBuffer = await imageResponse.arrayBuffer();
-						const base64Image = Buffer.from(imageBuffer).toString('base64');
-
-						return {
-							content: [
-								{
-									type: "image" as const,
-									data: base64Image,
-									mimeType: "image/png",
-								},
-							],
-						};
-					} catch (downloadError) {
-						return {
-							content: [
-								{
-									type: "text" as const,
-									text: `Error downloading screenshot: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`,
-								},
-							],
-							isError: true,
-						};
-					}
-				} else {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "Error: No screenshot URL received from API",
-							},
-						],
-						isError: true,
-					};
+				if (!imageUrl) {
+					throw new Error("No screenshot URL received from API");
 				}
-			} catch (error) {
+
+				// Prepare response content - always return as list structure for consistency
+				const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
+
+				if (return_url) {
+					// Return the URL as text
+					contentItems.push({
+						type: "text" as const,
+						text: imageUrl,
+					});
+				} else {
+					// Download and process the image (resize to max 800px, convert to JPEG)
+					const processedResults = await downloadImages(imageUrl, 1, 10000);
+					const processedResult = processedResults[0];
+
+					if (!processedResult.success) {
+						throw new Error(`Failed to process screenshot: ${processedResult.error}`);
+					}
+
+					contentItems.push({
+						type: "image" as const,
+						data: processedResult.data!,
+						mimeType: "image/jpeg",
+					});
+				}
+
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
+					content: contentItems,
 				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -139,7 +107,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Read URL tool - converts any URL to markdown via r.jina.ai
 	server.tool(
 		"read_url",
-		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data. Returns clean markdown text plus optional metadata like links and images.",
+		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data.",
 		{
 			url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article')"),
 			withAllLinks: z.boolean().optional().describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
@@ -151,15 +119,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				// Normalize the URL first
 				const normalizedUrl = normalizeUrl(url);
 				if (!normalizedUrl) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "Error: Invalid or unsupported URL",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("Invalid or unsupported URL");
 				}
 
 				const headers: Record<string, string> = {
@@ -196,15 +156,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				const data = await response.json() as any;
 
 				if (!data.data) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "Error: Invalid response data from r.jina.ai",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("Invalid response data from r.jina.ai");
 				}
 
 				const responseContent = [];
@@ -249,24 +201,15 @@ export function registerJinaTools(server: any, getProps: () => any) {
 					});
 				}
 
+				if (responseContent.length === 0) {
+					throw new Error("No content available from the URL");
+				}
+
 				return {
-					content: responseContent.length > 0 ? responseContent : [
-						{
-							type: "text" as const,
-							text: "No content available",
-						},
-					],
+					content: responseContent,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -274,7 +217,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Search Web tool - search the web using Jina Search API
 	server.tool(
 		"search_web",
-		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content. Returns structured search results with URLs, titles, and content snippets.",
+		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content.",
 		{
 			query: z.string().describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe')"),
 			num: z.number().optional().describe("Maximum number of search results to return, between 1-100 (default: 30)")
@@ -307,25 +250,23 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				const data = await response.json() as any;
 
+				// Return each result as individual text items for consistency
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				if (data.results && Array.isArray(data.results)) {
+					for (const result of data.results) {
+						contentItems.push({
+							type: "text" as const,
+							text: yamlStringify(result),
+						});
+					}
+				}
 
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: yamlStringify(data.results),
-						},
-					],
+					content: contentItems,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -333,7 +274,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Search Arxiv tool - search arxiv papers using Jina Search API
 	server.tool(
 		"search_arxiv",
-		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc. Returns academic papers with URLs, titles, abstracts, and metadata.",
+		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc.",
 		{
 			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
 			num: z.number().optional().describe("Maximum number of academic papers to return, between 1-100 (default: 30)")
@@ -367,25 +308,23 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				const data = await response.json() as any;
 
+				// Return each result as individual text items for consistency
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				if (data.results && Array.isArray(data.results)) {
+					for (const result of data.results) {
+						contentItems.push({
+							type: "text" as const,
+							text: yamlStringify(result),
+						});
+					}
+				}
 
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: yamlStringify(data.results),
-						},
-					],
+					content: contentItems,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -393,11 +332,12 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Search Image tool - search for images on the web using Jina Search API
 	server.tool(
 		"search_image",
-		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources. Returns image search results with URLs, titles, descriptions, and image metadata.",
+		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources.",
 		{
-			query: z.string().describe("Image search terms describing what you want to find (e.g., 'sunset over mountains', 'vintage car illustration', 'data visualization chart')")
+			query: z.string().describe("Image search terms describing what you want to find (e.g., 'sunset over mountains', 'vintage car illustration', 'data visualization chart')"),
+			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata instead of downloading images as base64 (default: false)")
 		},
-		async ({ query }: { query: string }) => {
+		async ({ query, return_url = false }: { query: string; return_url?: boolean }) => {
 			try {
 				const props = getProps();
 
@@ -425,24 +365,57 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				const data = await response.json() as any;
 
+				// Prepare response content - always return as list structure for consistency
+				const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
+
+				if (return_url) {
+					// Return each result as individual text items
+					if (data.results && Array.isArray(data.results)) {
+						for (const result of data.results) {
+							contentItems.push({
+								type: "text" as const,
+								text: yamlStringify(result),
+							});
+						}
+					}
+				} else {
+					// Extract image URLs from search results
+					const imageUrls: string[] = [];
+					if (data.results && Array.isArray(data.results)) {
+						for (const result of data.results) {
+							if (result.imageUrl) {
+								imageUrls.push(result.imageUrl);
+							}
+						}
+					}
+
+					if (imageUrls.length === 0) {
+						throw new Error("No image URLs found in search results");
+					}
+
+					// Download and process images (resize to max 800px, convert to JPEG)
+					// 15 second timeout - returns partial results if timeout occurs
+					const downloadResults = await downloadImages(imageUrls, 3, 15000);
+
+					// Add successful downloads as images
+					for (const result of downloadResults) {
+						if (result.success && result.data) {
+							contentItems.push({
+								type: "image" as const,
+								data: result.data,
+								mimeType: result.mimeType,
+							});
+						}
+					}
+
+
+				}
+
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: yamlStringify(data.results),
-						},
-					],
+					content: contentItems,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -450,7 +423,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Sort by relevance tool - rerank documents using Jina reranker API
 	server.tool(
 		"sort_by_relevance",
-		"Rerank a list of documents by relevance to a query using Jina Reranker API. Use this when you have multiple documents and want to sort them by how well they match a specific query or topic. Perfect for document retrieval, content filtering, or finding the most relevant information from a collection. Returns documents sorted by relevance score.",
+		"Rerank a list of documents by relevance to a query using Jina Reranker API. Use this when you have multiple documents and want to sort them by how well they match a specific query or topic. Perfect for document retrieval, content filtering, or finding the most relevant information from a collection.",
 		{
 			query: z.string().describe("The query or topic to rank documents against (e.g., 'machine learning algorithms', 'climate change solutions')"),
 			documents: z.array(z.string()).describe("Array of document texts to rerank by relevance"),
@@ -466,15 +439,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				if (documents.length === 0) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "No documents provided for reranking",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("No documents provided for reranking");
 				}
 
 				const response = await fetch('https://api.jina.ai/v1/rerank', {
@@ -498,24 +463,23 @@ export function registerJinaTools(server: any, getProps: () => any) {
 
 				const data = await response.json() as any;
 
-				return {
-					content: [
-						{
+				// Return each result as individual text items for consistency
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				if (data.results && Array.isArray(data.results)) {
+					for (const result of data.results) {
+						contentItems.push({
 							type: "text" as const,
-							text: yamlStringify(data.results),
-						},
-					],
+							text: yamlStringify(result),
+						});
+					}
+				}
+
+				return {
+					content: contentItems,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -523,7 +487,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Deduplicate strings tool - get top-k unique strings using embeddings and submodular optimization
 	server.tool(
 		"deduplicate_strings",
-		"Get top-k semantically unique strings from a list using Jina embeddings and submodular optimization. Use this when you have many similar strings and want to select the most diverse subset that covers the semantic space. Perfect for removing duplicates, selecting representative samples, or finding diverse content. Returns the selected strings with their indices.",
+		"Get top-k semantically unique strings from a list using Jina embeddings and submodular optimization. Use this when you have many similar strings and want to select the most diverse subset that covers the semantic space. Perfect for removing duplicates, selecting representative samples, or finding diverse content.",
 		{
 			strings: z.array(z.string()).describe("Array of strings to deduplicate"),
 			k: z.number().optional().describe("Number of unique strings to return. If not provided, automatically finds optimal k by looking at diminishing return")
@@ -538,27 +502,11 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				if (strings.length === 0) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "No strings provided for deduplication",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("No strings provided for deduplication");
 				}
 
 				if (k !== undefined && (k <= 0 || k > strings.length)) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: `Invalid k value: ${k}. Must be between 1 and ${strings.length}`,
-							},
-						],
-						isError: true,
-					};
+					throw new Error(`Invalid k value: ${k}. Must be between 1 and ${strings.length}`);
 				}
 
 				// Get embeddings from Jina API
@@ -583,15 +531,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				const data = await response.json() as any;
 
 				if (!data.data || !Array.isArray(data.data)) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "Invalid response format from embeddings API",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("Invalid response format from embeddings API");
 				}
 
 				// Extract embeddings
@@ -619,27 +559,21 @@ export function registerJinaTools(server: any, getProps: () => any) {
 					text: strings[idx]
 				}));
 
+				// Return each deduplicated string as individual text items for consistency
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				for (const selectedString of selectedStrings) {
+					contentItems.push({
+						type: "text" as const,
+						text: yamlStringify(selectedString),
+					});
+				}
+
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: yamlStringify({
-								// values: values,
-								deduplicated_strings: selectedStrings,
-							}),
-						},
-					],
+					content: contentItems,
 				};
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);
@@ -647,7 +581,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 	// Deduplicate images tool - get top-k unique images using image embeddings and submodular optimization
 	server.tool(
 		"deduplicate_images",
-		"Get top-k semantically unique images (URLs or base64-encoded) using Jina CLIP v2 embeddings and submodular optimization. Use this when you have many visually similar images and want the most diverse subset. Returns selected images as PNG base64-encoded images.",
+		"Get top-k semantically unique images (URLs or base64-encoded) using Jina CLIP v2 embeddings and submodular optimization. Use this when you have many visually similar images and want the most diverse subset.",
 		{
 			images: z.array(z.string()).describe("Array of image inputs to deduplicate. Each item can be either an HTTP(S) URL or a raw base64-encoded image string (without data URI prefix)."),
 			k: z.number().optional().describe("Number of unique images to return. If not provided, automatically finds optimal k by looking at diminishing return"),
@@ -662,27 +596,11 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				}
 
 				if (images.length === 0) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "No images provided for deduplication",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("No images provided for deduplication");
 				}
 
 				if (k !== undefined && (k <= 0 || k > images.length)) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: `Invalid k value: ${k}. Must be between 1 and ${images.length}`,
-							},
-						],
-						isError: true,
-					};
+					throw new Error(`Invalid k value: ${k}. Must be between 1 and ${images.length}`);
 				}
 
 				// Prepare input for image embeddings API
@@ -709,15 +627,7 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				const data = await response.json() as any;
 
 				if (!data.data || !Array.isArray(data.data)) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: "Invalid response format from embeddings API",
-							},
-						],
-						isError: true,
-					};
+					throw new Error("Invalid response format from embeddings API");
 				}
 
 				// Extract embeddings
@@ -740,47 +650,56 @@ export function registerJinaTools(server: any, getProps: () => any) {
 				const selectedImages = selectedIndices.map((idx) => ({ index: idx, source: images[idx] }));
 
 
-				const contentItems: Array<{ type: 'image'; data: string; mimeType?: string } | { type: 'text'; text: string }> = [];
+				// Use our consolidated downloadImages utility for consistency
+				const urlsToDownload = selectedImages
+					.filter(({ source }) => /^https?:\/\//i.test(source))
+					.map(({ source }) => source);
 
-				for (const { index, source } of selectedImages) {
-					try {
-						if (/^https?:\/\//i.test(source)) {
-							// Try to leverage Cloudflare Image Resizing to transcode to PNG when available
-							let imgResp = await fetch(source, {
-								// @ts-ignore
-								cf: { image: { format: 'png' } }
-							} as any);
-							if (!imgResp.ok) {
-								// Fallback to plain fetch if resizing is not available
-								imgResp = await fetch(source);
-							}
-							if (!imgResp.ok) {
-								contentItems.push({ type: 'text', text: `Failed to download image at index ${index}: HTTP ${imgResp.status}` });
-								continue;
-							}
-							const arrayBuf = await imgResp.arrayBuffer();
-							const base64Data = Buffer.from(arrayBuf).toString('base64');
-							contentItems.push({ type: 'image', data: base64Data, mimeType: 'image/png' });
+				const base64Images = selectedImages
+					.filter(({ source }) => !/^https?:\/\//i.test(source))
+					.map(({ source }) => source);
+
+				const contentItems: Array<{ type: 'image'; data: string; mimeType: string } | { type: 'text'; text: string }> = [];
+
+				// Download URLs using our utility
+				if (urlsToDownload.length > 0) {
+					const downloadResults = await downloadImages(urlsToDownload, 3, 15000);
+
+					for (let i = 0; i < downloadResults.length; i++) {
+						const result = downloadResults[i];
+						const selectedImage = selectedImages.find(({ source }) => source === urlsToDownload[i]);
+
+						if (result.success && result.data) {
+							contentItems.push({
+								type: 'image' as const,
+								data: result.data,
+								mimeType: result.mimeType,
+							});
 						} else {
-							// Treat as raw base64 without data URI; return as PNG by contract
-							contentItems.push({ type: 'image', data: source, mimeType: 'image/png' });
+							contentItems.push({
+								type: 'text' as const,
+								text: `Failed to download image at index ${selectedImage?.index || i}: ${result.error || 'Unknown error'}`,
+							});
 						}
-					} catch (e) {
-						contentItems.push({ type: 'text', text: `Error processing image at index ${index}: ${e instanceof Error ? e.message : String(e)}` });
 					}
 				}
 
-				return { content: contentItems.length > 0 ? contentItems : [{ type: 'text' as const, text: 'No images to return' }] };
+				// Add base64 images directly
+				for (const base64Image of base64Images) {
+					contentItems.push({
+						type: 'image' as const,
+						data: base64Image,
+						mimeType: 'image/jpeg', // Our utility converts to JPEG
+					});
+				}
+
+				if (contentItems.length === 0) {
+					throw new Error("No images to return after deduplication");
+				}
+
+				return { content: contentItems };
 			} catch (error) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-						},
-					],
-					isError: true,
-				};
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 	);

@@ -70,13 +70,13 @@ export default {
 				},
 				tools: [
 					"read_url - Extract clean content from web pages",
-					"capture_screenshot_url - Capture webpage screenshots",
+					"capture_screenshot_url - Capture high-quality screenshots of web pages",
 					"search_web - Search the web for current information",
 					"search_arxiv - Search academic papers on arXiv",
-					"search_image - Search for images across the web",
+					"search_image - Search for images across the web (similar to Google Images)",
 					"sort_by_relevance - Rerank documents by relevance to a query",
 					"deduplicate_strings - Get top-k semantically unique strings",
-					"deduplicate_images - Get top-k semantically unique images as PNG base64"
+					"deduplicate_images - Get top-k semantically unique images"
 				],
 				source_code: "https://github.com/jina-ai/MCP",
 				get_api_key: "https://jina.ai/api-dashboard/"
