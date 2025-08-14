@@ -244,9 +244,13 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content.",
 		{
 			query: z.string().describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe')"),
-			num: z.number().optional().describe("Maximum number of search results to return, between 1-100 (default: 30)")
+			num: z.number().optional().describe("Maximum number of search results to return, between 1-100 (default: 30)"),
+			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y"),
+			location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
+			gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
+			hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
 		},
-		async ({ query, num = 30 }: { query: string; num?: number }) => {
+		async ({ query, num = 30, tbs, location, gl, hl }: { query: string; num?: number; tbs?: string; location?: string; gl?: string; hl?: string }) => {
 			try {
 				const props = getProps();
 
@@ -264,7 +268,11 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					},
 					body: JSON.stringify({
 						q: query,
-						num
+						num,
+						...(tbs && { tbs }),
+						...(location && { location }),
+						...(gl && { gl }),
+						...(hl && { hl })
 					}),
 				});
 
@@ -295,15 +303,72 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		},
 	);
 
+	// Expand Query tool - expand search queries using Jina Search API
+	server.tool(
+		"expand_query",
+		"Expand and rewrite search queries based on an up-to-date query expansion model. This tool takes an initial query and returns multiple expanded queries that can be used for more diversed and deeper searches. Useful for improving deep research results by searching broader and deeper.",
+		{
+			query: z.string().describe("The search query to expand (e.g., 'machine learning', 'climate change')")
+		},
+		async ({ query }: { query: string }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				const response = await fetch('https://svip.jina.ai/', {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${props.bearerToken}`,
+					},
+					body: JSON.stringify({
+						q: query,
+						query_expansion: true
+					}),
+				});
+
+				if (!response.ok) {
+					return handleApiError(response, "Query expansion");
+				}
+
+				const data = await response.json() as any;
+
+				// Return each result as individual text items for consistency
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				if (data.results && Array.isArray(data.results)) {
+					for (const result of data.results) {
+						contentItems.push({
+							type: "text" as const,
+							text: result,
+						});
+					}
+				}
+
+				return {
+					content: contentItems,
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		},
+	);
+
 	// Search Arxiv tool - search arxiv papers using Jina Search API
 	server.tool(
 		"search_arxiv",
 		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc.",
 		{
 			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
-			num: z.number().optional().describe("Maximum number of academic papers to return, between 1-100 (default: 30)")
+			num: z.number().optional().describe("Maximum number of academic papers to return, between 1-100 (default: 30)"),
+			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y")
 		},
-		async ({ query, num = 30 }: { query: string; num?: number }) => {
+		async ({ query, num = 30, tbs }: { query: string; num?: number; tbs?: string }) => {
 			try {
 				const props = getProps();
 
@@ -322,7 +387,8 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					body: JSON.stringify({
 						q: query,
 						domain: 'arxiv',
-						num
+						num,
+						...(tbs && { tbs })
 					}),
 				});
 
@@ -353,15 +419,19 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		},
 	);
 
-	// Search Image tool - search for images on the web using Jina Search API
+	// Search Images tool - search for images on the web using Jina Search API
 	server.tool(
-		"search_image",
+		"search_images",
 		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources. Images are returned by default as small base64-encoded JPEG images.",
 		{
 			query: z.string().describe("Image search terms describing what you want to find (e.g., 'sunset over mountains', 'vintage car illustration', 'data visualization chart')"),
-			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata. By default, images are downloaded as base64 and returned as renderd images.")
+			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata. By default, images are downloaded as base64 and returned as renderd images."),
+			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y"),
+			location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
+			gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
+			hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
 		},
-		async ({ query, return_url = false }: { query: string; return_url?: boolean }) => {
+		async ({ query, return_url = false, tbs, location, gl, hl }: { query: string; return_url?: boolean; tbs?: string; location?: string; gl?: string; hl?: string }) => {
 			try {
 				const props = getProps();
 
@@ -380,6 +450,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					body: JSON.stringify({
 						q: query,
 						type: 'images',
+						...(tbs && { tbs }),
+						...(location && { location }),
+						...(gl && { gl }),
+						...(hl && { hl })
 					}),
 				});
 

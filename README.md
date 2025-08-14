@@ -10,7 +10,8 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 | `capture_screenshot_url` | Capture high-quality screenshots of web pages via [Reader API](https://jina.ai/reader) | Optional* |
 | `search_web` | Search the entire web for current information and news via [Reader API](https://jina.ai/reader) | Yes |
 | `search_arxiv` | Search academic papers and preprints on arXiv repository via [Reader API](https://jina.ai/reader) | Yes |
-| `search_image` | Search for images across the web (similar to Google Images) via [Reader API](https://jina.ai/reader) | Yes |
+| `search_images` | Search for images across the web (similar to Google Images) via [Reader API](https://jina.ai/reader) | Yes |
+| `expand_query` | Expand and rewrite search queries based on the query expansion model via [Reader API](https://jina.ai/reader) | Yes |
 | `sort_by_relevance` | Rerank documents by relevance to a query via [Reranker API](https://jina.ai/reranker) | Yes |
 | `deduplicate_strings` | Get top-k semantically unique strings via [Embeddings API](https://jina.ai/embeddings) and [submodular optimization](https://jina.ai/news/submodular-optimization-for-diverse-query-generation-in-deepresearch) | Yes |
 | `deduplicate_images` | Get top-k semantically unique images via [Embeddings API](https://jina.ai/embeddings) and [submodular optimization](https://jina.ai/news/submodular-optimization-for-diverse-query-generation-in-deepresearch) | Yes |

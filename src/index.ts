@@ -131,7 +131,8 @@ export default {
 					"capture_screenshot_url - Capture high-quality screenshots of web pages",
 					"search_web - Search the web for current information",
 					"search_arxiv - Search academic papers on arXiv",
-					"search_image - Search for images across the web (similar to Google Images)",
+					"search_images - Search for images across the web (similar to Google Images)",
+					"expand_query - Expand and rewrite search queries based on the query expansion model",
 					"sort_by_relevance - Rerank documents by relevance to a query",
 					"deduplicate_strings - Get top-k semantically unique strings",
 					"deduplicate_images - Get top-k semantically unique images"
