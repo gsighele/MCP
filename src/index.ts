@@ -104,6 +104,7 @@ export default {
 		if (url.pathname === "/") {
 			const info = {
 				name: "Jina AI Official MCP Server",
+				source_code: "https://github.com/jina-ai/MCP",
 				description: "Official Model Context Protocol server for Jina AI APIs",
 				version: SERVER_VERSION,
 				package_name: SERVER_NAME,
@@ -117,8 +118,9 @@ export default {
 		}
 	}
 	}
-}				
+}
 `,
+				get_api_key: "https://jina.ai/api-dashboard/",
 				endpoints: {
 					sse: "/sse - Server-Sent Events endpoint (recommended)",
 					mcp: "/mcp - Standard JSON-RPC endpoint"
@@ -133,9 +135,7 @@ export default {
 					"sort_by_relevance - Rerank documents by relevance to a query",
 					"deduplicate_strings - Get top-k semantically unique strings",
 					"deduplicate_images - Get top-k semantically unique images"
-				],
-				source_code: "https://github.com/jina-ai/MCP",
-				get_api_key: "https://jina.ai/api-dashboard/"
+				]
 			};
 
 			return new Response(yamlStringify(info), {
