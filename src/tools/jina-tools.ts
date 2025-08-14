@@ -4,8 +4,9 @@ import { normalizeUrl } from "../utils/url-normalizer.js";
 import { handleApiError, checkBearerToken } from "../utils/api-error-handler.js";
 import { lazyGreedySelection, lazyGreedySelectionWithSaturation } from "../utils/submodular-optimization.js";
 import { downloadImages } from "../utils/image-downloader.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export function registerJinaTools(server: any, getProps: () => any) {
+export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Helper function to create error responses
 	const createErrorResponse = (message: string) => ({
 		content: [{ type: "text" as const, text: message }],
@@ -26,6 +27,29 @@ export function registerJinaTools(server: any, getProps: () => any) {
 			return {
 				content: [{ type: "text" as const, text: token }],
 			};
+		},
+	);
+
+	// Primer tool - provides current world knowledge for LLMs
+	server.tool(
+		"primer",
+		"Get up-to-date contextual information of the current session to provide localized, time-aware responses. Use this when you need to know the current time, user's location, or network environment to give more relevant and personalized information.",
+		{},
+		async () => {
+			try {
+				const props = getProps();
+				const context = props.context;
+
+				if (!context) {
+					throw new Error("No context information available");
+				}
+
+				return {
+					content: [{ type: "text" as const, text: yamlStringify(context) }],
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
 		},
 	);
 

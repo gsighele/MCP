@@ -25,6 +25,7 @@ export class MyMCP extends McpAgent {
 export default {
 	fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
+		const cf = request.cf;
 
 		// Extract bearer token from Authorization header
 		const authHeader = request.headers.get("Authorization");
@@ -36,6 +37,60 @@ export default {
 		if (!ctx.props.bearerToken && env.JINA_API_KEY) {
 			ctx.props.bearerToken = env.JINA_API_KEY;
 		}
+
+		// Extract context information for the primer tool
+		const context: any = {};
+
+		// Add timestamp info
+		context.timestamp = {
+			utc: new Date().toISOString(),
+		};
+		if (cf?.timezone) {
+			context.timestamp.userTimezone = cf.timezone;
+			context.timestamp.userLocalTime = new Date().toLocaleString('en-US', { timeZone: cf.timezone as string });
+		}
+
+		// Add client info (only if values exist)
+		const client: any = {};
+		const clientIp = request.headers.get('CF-Connecting-IP');
+		const userAgent = request.headers.get('User-Agent');
+		const acceptLanguage = request.headers.get('Accept-Language');
+
+		if (clientIp) client.ip = clientIp;
+		if (userAgent) client.userAgent = userAgent;
+		if (acceptLanguage) client.acceptLanguage = acceptLanguage;
+		if (Object.keys(client).length > 0) context.client = client;
+
+		// Add location info (only if values exist)
+		const location: any = {};
+		if (cf?.country) location.country = cf.country;
+		if (cf?.city) location.city = cf.city;
+		if (cf?.region) location.region = cf.region;
+		if (cf?.regionCode) location.regionCode = cf.regionCode;
+		if (cf?.continent) location.continent = cf.continent;
+		if (cf?.postalCode) location.postalCode = cf.postalCode;
+		if (cf?.metroCode) location.metroCode = cf.metroCode;
+		if (cf?.timezone) location.timezone = cf.timezone;
+		if (cf?.latitude && cf?.longitude) {
+			location.coordinates = {
+				lat: cf.latitude,
+				lon: cf.longitude
+			};
+		}
+		if (cf?.isEUCountry === "1") location.isEU = true;
+		if (Object.keys(location).length > 0) context.location = location;
+
+		// Add network info (only if values exist)
+		const network: any = {};
+		if (cf?.asn) network.asn = cf.asn;
+		if (cf?.asOrganization) network.organization = cf.asOrganization;
+		if (cf?.colo) network.datacenter = cf.colo;
+		if (cf?.httpProtocol) network.protocol = cf.httpProtocol;
+		if (cf?.tlsVersion) network.tlsVersion = cf.tlsVersion;
+		if (Object.keys(network).length > 0) context.network = network;
+
+		// Add context to props
+		ctx.props = { ...ctx.props, context };
 
 		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
 			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
@@ -69,6 +124,7 @@ export default {
 					mcp: "/mcp - Standard JSON-RPC endpoint"
 				},
 				tools: [
+					"primer - Get current contextual information for localized, time-aware responses",
 					"read_url - Extract clean content from web pages",
 					"capture_screenshot_url - Capture high-quality screenshots of web pages",
 					"search_web - Search the web for current information",
