@@ -453,7 +453,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Web tool - execute multiple web searches in parallel
 	server.tool(
 		"parallel_search_web",
-		"Execute multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide diverse search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself.",
+		"Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide multiple search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Search terms or keywords to find relevant web content"),
@@ -494,7 +494,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Arxiv tool - execute multiple arXiv searches in parallel
 	server.tool(
 		"parallel_search_arxiv",
-		"Execute multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide diverse academic search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself.",
+		"Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide multiple search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Academic search terms, author names, or research topics"),
