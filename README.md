@@ -6,8 +6,10 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 
 | Tool | Description | Is Jina API Key Required? |
 |-----------|-------------|----------------------|
+| `primer` | Get current contextual information for localized, time-aware responses | No |
 | `read_url` | Extract clean, structured content from web pages as markdown via [Reader API](https://jina.ai/reader) | Optional* |
 | `capture_screenshot_url` | Capture high-quality screenshots of web pages via [Reader API](https://jina.ai/reader) | Optional* |
+| `guess_datetime_url` | Analyze web pages for last update/publish datetime with confidence scores | No |
 | `search_web` | Search the entire web for current information and news via [Reader API](https://jina.ai/reader) | Yes |
 | `search_arxiv` | Search academic papers and preprints on arXiv repository via [Reader API](https://jina.ai/reader) | Yes |
 | `search_images` | Search for images across the web (similar to Google Images) via [Reader API](https://jina.ai/reader) | Yes |
@@ -70,6 +72,44 @@ The solution is to load the model with enough context length to contain the full
 Some MCP clients have local caching and do not actively update tool definitions. If you're not seeing all the available tools or if tools seem outdated, you may need to remove and re-add the jina-mcp-server to your MCP client configuration. This will force the client to refresh its cached tool definitions. In LMStudio, you can click the refresh button to load new tools.
 
 ![update local mcp clients](/.readme/image2.png)
+
+### Visual Content Research
+
+```mermaid
+flowchart TD
+    A[Visual Content Need] --> B[search_images<br/>Find relevant images]
+    B --> C[deduplicate_images<br/>Get diverse selection]
+    C --> D[capture_screenshot_url<br/>Capture specific examples]
+    D --> E[read_url<br/>Extract context info]
+    E --> F[primer<br/>Get current context]
+    F --> G[Visual Content Collection]
+    
+    style A fill:#fce4ec
+    style G fill:#e8f5e8
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+```
+
+**Use Case**: Researching visual content for a presentation - search for relevant images, deduplicate to get diverse selection, capture specific examples, extract context information, and get current context for relevance.
+
+### Content Freshness Verification
+
+```mermaid
+flowchart TD
+    A[Content to Verify] --> B[guess_datetime_url<br/>Check last update time]
+    B --> C{Content Fresh?}
+    C -->|Yes| D[Use Content]
+    C -->|No| E[search_web<br/>Find updated sources]
+    E --> F[read_url<br/>Extract new content]
+    F --> G[Updated Information]
+    
+    style A fill:#e3f2fd
+    style G fill:#f1f8e9
+    style B fill:#fff3e0
+    style E fill:#fce4ec
+```
+
+**Use Case**: Verifying content freshness - check when a webpage was last updated, and if it's outdated, search for more recent sources to get current information.
 
 ## Developer Guide
 

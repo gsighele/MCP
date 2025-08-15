@@ -64,6 +64,30 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		},
 	);
 
+	// Guess datetime from URL tool - analyzes web pages for datetime information
+	server.tool(
+		"guess_datetime_url",
+		"Analyze a web page to determine when it was last updated or published. This tool examines HTTP headers, HTML metadata, Schema.org data, visible dates, JavaScript timestamps, HTML comments, Git information, RSS/Atom feeds, sitemaps, and international date formats to provide the most accurate update time with confidence scores. Returns the best guess timestamp and confidence level.",
+		{
+			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to analyze for datetime information")
+		},
+		async ({ url }: { url: string }) => {
+			try {
+				// Import the utility function
+				const { guessDatetimeFromUrl } = await import("../utils/guess-datetime.js");
+
+				// Analyze the URL for datetime information
+				const result = await guessDatetimeFromUrl(url);
+
+				return {
+					content: [{ type: "text" as const, text: yamlStringify(result) }],
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		},
+	);
+
 	// Screenshot tool - captures web page screenshots
 	server.tool(
 		"capture_screenshot_url",

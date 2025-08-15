@@ -4,7 +4,7 @@ import { registerJinaTools } from "./tools/jina-tools.js";
 import { stringify as yamlStringify } from "yaml";
 
 // Build-time constants (can be replaced by build tools)
-const SERVER_VERSION = "1.1.0"; // This could be replaced by CI/CD
+const SERVER_VERSION = "1.2.0"; // This could be replaced by CI/CD
 const SERVER_NAME = "jina-mcp";
 
 // Define our MCP agent with tools
@@ -126,9 +126,10 @@ export default {
 					mcp: "/mcp - Standard JSON-RPC endpoint"
 				},
 				tools: [
-					"primer - Get current contextual information for localized, time-aware responses",
+					"primer - Provide timezone-aware timestamps, user location, network details, and client context",
 					"read_url - Extract clean content from web pages",
 					"capture_screenshot_url - Capture high-quality screenshots of web pages",
+					"guess_datetime_url - Analyze web pages for last update/publish datetime",
 					"search_web - Search the web for current information",
 					"search_arxiv - Search academic papers on arXiv",
 					"search_images - Search for images across the web (similar to Google Images)",
