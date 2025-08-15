@@ -65,6 +65,11 @@ The solution is to load the model with enough context length to contain the full
 
 ![set long enough context](/.readme/image.png)
 
+### I can't see all tools.
+
+Some MCP clients have local caching and do not actively update tool definitions. If you're not seeing all the available tools or if tools seem outdated, you may need to remove and re-add the jina-mcp-server to your MCP client configuration. This will force the client to refresh its cached tool definitions. In LMStudio, you can click the refresh button to load new tools.
+
+![update local mcp clients](/.readme/image2.png)
 
 ## Developer Guide
 
