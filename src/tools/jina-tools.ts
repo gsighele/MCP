@@ -4,6 +4,17 @@ import { normalizeUrl } from "../utils/url-normalizer.js";
 import { handleApiError, checkBearerToken } from "../utils/api-error-handler.js";
 import { lazyGreedySelection, lazyGreedySelectionWithSaturation } from "../utils/submodular-optimization.js";
 import { downloadImages } from "../utils/image-downloader.js";
+import {
+	executeParallelSearches,
+	executeWebSearch,
+	executeArxivSearch,
+	executeImageSearch,
+	type SearchWebArgs,
+	type SearchArxivArgs,
+	type SearchImageArgs,
+	formatSingleSearchResultToContentItems,
+	formatParallelSearchResultsToContentItems
+} from "../utils/search.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 export function registerJinaTools(server: McpServer, getProps: () => any) {
@@ -59,10 +70,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		"Capture high-quality screenshots of web pages in base64 encoded JPEG format. Use this tool when you need to visually inspect a website, take a snapshot for analysis, or show users what a webpage looks like.",
 		{
 			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to capture (e.g., 'https://example.com')"),
-			firstScreenOnly: z.boolean().optional().describe("Set to true for a single screen capture (faster), false for full page capture including content below the fold (default: false)"),
-			return_url: z.boolean().optional().describe("Set to true to return screenshot URLs instead of downloading images as base64 (default: false)")
+			firstScreenOnly: z.boolean().default(false).describe("Set to true for a single screen capture (faster), false for full page capture including content below the fold"),
+			return_url: z.boolean().default(false).describe("Set to true to return screenshot URLs instead of downloading images as base64")
 		},
-		async ({ url, firstScreenOnly, return_url = false }: { url: string; firstScreenOnly?: boolean; return_url?: boolean }) => {
+		async ({ url, firstScreenOnly, return_url }: { url: string; firstScreenOnly: boolean; return_url: boolean }) => {
 			try {
 				const props = getProps();
 				const headers: Record<string, string> = {
@@ -244,13 +255,13 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content.",
 		{
 			query: z.string().describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe')"),
-			num: z.number().optional().describe("Maximum number of search results to return, between 1-100 (default: 30)"),
+			num: z.number().default(30).describe("Maximum number of search results to return, between 1-100"),
 			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y"),
 			location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
 			gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
 			hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
 		},
-		async ({ query, num = 30, tbs, location, gl, hl }: { query: string; num?: number; tbs?: string; location?: string; gl?: string; hl?: string }) => {
+		async ({ query, num, tbs, location, gl, hl }: SearchWebArgs) => {
 			try {
 				const props = getProps();
 
@@ -259,43 +270,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
-				const response = await fetch('https://svip.jina.ai/', {
-					method: 'POST',
-					headers: {
-						'Accept': 'application/json',
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${props.bearerToken}`,
-					},
-					body: JSON.stringify({
-						q: query,
-						num,
-						...(tbs && { tbs }),
-						...(location && { location }),
-						...(gl && { gl }),
-						...(hl && { hl })
-					}),
-				});
-
-				if (!response.ok) {
-					return handleApiError(response, "Web search");
-				}
-
-				const data = await response.json() as any;
-
-				// Return each result as individual text items for consistency
-				const contentItems: Array<{ type: 'text'; text: string }> = [];
-
-				if (data.results && Array.isArray(data.results)) {
-					for (const result of data.results) {
-						contentItems.push({
-							type: "text" as const,
-							text: yamlStringify(result),
-						});
-					}
-				}
+				const searchResult = await executeWebSearch({ query, num, tbs, location, gl, hl }, props.bearerToken);
 
 				return {
-					content: contentItems,
+					content: formatSingleSearchResultToContentItems(searchResult),
 				};
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -365,10 +343,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc.",
 		{
 			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
-			num: z.number().optional().describe("Maximum number of academic papers to return, between 1-100 (default: 30)"),
+			num: z.number().default(30).describe("Maximum number of academic papers to return, between 1-100"),
 			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y")
 		},
-		async ({ query, num = 30, tbs }: { query: string; num?: number; tbs?: string }) => {
+		async ({ query, num, tbs }: SearchArxivArgs) => {
 			try {
 				const props = getProps();
 
@@ -377,41 +355,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
-				const response = await fetch('https://svip.jina.ai/', {
-					method: 'POST',
-					headers: {
-						'Accept': 'application/json',
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${props.bearerToken}`,
-					},
-					body: JSON.stringify({
-						q: query,
-						domain: 'arxiv',
-						num,
-						...(tbs && { tbs })
-					}),
-				});
-
-				if (!response.ok) {
-					return handleApiError(response, "arXiv search");
-				}
-
-				const data = await response.json() as any;
-
-				// Return each result as individual text items for consistency
-				const contentItems: Array<{ type: 'text'; text: string }> = [];
-
-				if (data.results && Array.isArray(data.results)) {
-					for (const result of data.results) {
-						contentItems.push({
-							type: "text" as const,
-							text: yamlStringify(result),
-						});
-					}
-				}
+				const searchResult = await executeArxivSearch({ query, num, tbs }, props.bearerToken);
 
 				return {
-					content: contentItems,
+					content: formatSingleSearchResultToContentItems(searchResult),
 				};
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -425,13 +372,13 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		"Search for images across the web, similar to Google Images. Use this when you need to find photos, illustrations, diagrams, charts, logos, or any visual content. Perfect for finding images to illustrate concepts, locating specific pictures, or discovering visual resources. Images are returned by default as small base64-encoded JPEG images.",
 		{
 			query: z.string().describe("Image search terms describing what you want to find (e.g., 'sunset over mountains', 'vintage car illustration', 'data visualization chart')"),
-			return_url: z.boolean().optional().describe("Set to true to return image URLs, title, shapes, and other metadata. By default, images are downloaded as base64 and returned as renderd images."),
+			return_url: z.boolean().default(false).describe("Set to true to return image URLs, title, shapes, and other metadata. By default, images are downloaded as base64 and returned as rendered images."),
 			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y"),
 			location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
 			gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
 			hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
 		},
-		async ({ query, return_url = false, tbs, location, gl, hl }: { query: string; return_url?: boolean; tbs?: string; location?: string; gl?: string; hl?: string }) => {
+		async ({ query, return_url, tbs, location, gl, hl }: SearchImageArgs) => {
 			try {
 				const props = getProps();
 
@@ -440,28 +387,13 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
-				const response = await fetch('https://svip.jina.ai/', {
-					method: 'POST',
-					headers: {
-						'Accept': 'application/json',
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${props.bearerToken}`,
-					},
-					body: JSON.stringify({
-						q: query,
-						type: 'images',
-						...(tbs && { tbs }),
-						...(location && { location }),
-						...(gl && { gl }),
-						...(hl && { hl })
-					}),
-				});
+				const searchResult = await executeImageSearch({ query, return_url, tbs, location, gl, hl }, props.bearerToken);
 
-				if (!response.ok) {
-					return handleApiError(response, "Image search");
+				if ('error' in searchResult) {
+					return createErrorResponse(searchResult.error);
 				}
 
-				const data = await response.json() as any;
+				const data = { results: searchResult.results };
 
 				// Prepare response content - always return as list structure for consistency
 				const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
@@ -518,6 +450,85 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		},
 	);
 
+	// Parallel Search Web tool - execute multiple web searches in parallel
+	server.tool(
+		"parallel_search_web",
+		"Execute multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide diverse search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself.",
+		{
+			searches: z.array(z.object({
+				query: z.string().describe("Search terms or keywords to find relevant web content"),
+				num: z.number().default(30).describe("Maximum number of search results to return, between 1-100"),
+				tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour"),
+				location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
+				gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
+				hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
+			})).max(5).describe("Array of search configurations to execute in parallel (maximum 5 searches for optimal performance)"),
+			timeout: z.number().default(30000).describe("Timeout in milliseconds for all searches")
+		},
+		async ({ searches, timeout }: { searches: SearchWebArgs[]; timeout: number }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				// Use the common web search function
+				const webSearchFunction = async (searchArgs: SearchWebArgs) => {
+					return executeWebSearch(searchArgs, props.bearerToken);
+				};
+
+				// Execute parallel searches using utility
+				const results = await executeParallelSearches(searches, webSearchFunction, { timeout });
+
+				return {
+					content: formatParallelSearchResultsToContentItems(results),
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		},
+	);
+
+	// Parallel Search Arxiv tool - execute multiple arXiv searches in parallel
+	server.tool(
+		"parallel_search_arxiv",
+		"Execute multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide diverse academic search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself.",
+		{
+			searches: z.array(z.object({
+				query: z.string().describe("Academic search terms, author names, or research topics"),
+				num: z.number().default(30).describe("Maximum number of academic papers to return, between 1-100"),
+				tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour")
+			})).max(5).describe("Array of arXiv search configurations to execute in parallel (maximum 5 searches for optimal performance)"),
+			timeout: z.number().default(30000).describe("Timeout in milliseconds for all searches")
+		},
+		async ({ searches, timeout }: { searches: SearchArxivArgs[]; timeout: number }) => {
+			try {
+				const props = getProps();
+
+				const tokenError = checkBearerToken(props.bearerToken);
+				if (tokenError) {
+					return tokenError;
+				}
+
+				// Use the common arXiv search function
+				const arxivSearchFunction = async (searchArgs: SearchArxivArgs) => {
+					return executeArxivSearch(searchArgs, props.bearerToken);
+				};
+
+				// Execute parallel searches using utility
+				const results = await executeParallelSearches(searches, arxivSearchFunction, { timeout });
+
+				return {
+					content: formatParallelSearchResultsToContentItems(results),
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		},
+	);
+
 	// Sort by relevance tool - rerank documents using Jina reranker API
 	server.tool(
 		"sort_by_relevance",
@@ -525,7 +536,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		{
 			query: z.string().describe("The query or topic to rank documents against (e.g., 'machine learning algorithms', 'climate change solutions')"),
 			documents: z.array(z.string()).describe("Array of document texts to rerank by relevance"),
-			top_n: z.number().optional().describe("Maximum number of top results to return (default: all documents)")
+			top_n: z.number().optional().describe("Maximum number of top results to return")
 		},
 		async ({ query, documents, top_n }: { query: string; documents: string[]; top_n?: number }) => {
 			try {

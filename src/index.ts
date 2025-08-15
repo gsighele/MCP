@@ -4,7 +4,7 @@ import { registerJinaTools } from "./tools/jina-tools.js";
 import { stringify as yamlStringify } from "yaml";
 
 // Build-time constants (can be replaced by build tools)
-const SERVER_VERSION = "1.0.0"; // This could be replaced by CI/CD
+const SERVER_VERSION = "1.1.0"; // This could be replaced by CI/CD
 const SERVER_NAME = "jina-mcp";
 
 // Define our MCP agent with tools
@@ -133,6 +133,8 @@ export default {
 					"search_arxiv - Search academic papers on arXiv",
 					"search_images - Search for images across the web (similar to Google Images)",
 					"expand_query - Expand and rewrite search queries based on the query expansion model",
+					"parallel_search_web - Execute multiple web searches in parallel for comprehensive topic coverage and diverse perspectives",
+					"parallel_search_arxiv - Execute multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles",
 					"sort_by_relevance - Rerank documents by relevance to a query",
 					"deduplicate_strings - Get top-k semantically unique strings",
 					"deduplicate_images - Get top-k semantically unique images"
