@@ -73,44 +73,6 @@ Some MCP clients have local caching and do not actively update tool definitions.
 
 ![update local mcp clients](/.readme/image2.png)
 
-### Visual Content Research
-
-```mermaid
-flowchart TD
-    A[Visual Content Need] --> B[search_images<br/>Find relevant images]
-    B --> C[deduplicate_images<br/>Get diverse selection]
-    C --> D[capture_screenshot_url<br/>Capture specific examples]
-    D --> E[read_url<br/>Extract context info]
-    E --> F[primer<br/>Get current context]
-    F --> G[Visual Content Collection]
-    
-    style A fill:#fce4ec
-    style G fill:#e8f5e8
-    style B fill:#fff3e0
-    style C fill:#f3e5f5
-```
-
-**Use Case**: Researching visual content for a presentation - search for relevant images, deduplicate to get diverse selection, capture specific examples, extract context information, and get current context for relevance.
-
-### Content Freshness Verification
-
-```mermaid
-flowchart TD
-    A[Content to Verify] --> B[guess_datetime_url<br/>Check last update time]
-    B --> C{Content Fresh?}
-    C -->|Yes| D[Use Content]
-    C -->|No| E[search_web<br/>Find updated sources]
-    E --> F[read_url<br/>Extract new content]
-    F --> G[Updated Information]
-    
-    style A fill:#e3f2fd
-    style G fill:#f1f8e9
-    style B fill:#fff3e0
-    style E fill:#fce4ec
-```
-
-**Use Case**: Verifying content freshness - check when a webpage was last updated, and if it's outdated, search for more recent sources to get current information.
-
 ## Developer Guide
 
 ### Local Development
