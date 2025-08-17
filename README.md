@@ -14,6 +14,7 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 | `search_arxiv` | Search academic papers and preprints on arXiv repository via [Reader API](https://jina.ai/reader) | Yes |
 | `search_images` | Search for images across the web (similar to Google Images) via [Reader API](https://jina.ai/reader) | Yes |
 | `expand_query` | Expand and rewrite search queries based on the query expansion model via [Reader API](https://jina.ai/reader) | Yes |
+| `parallel_read_url` | Read multiple web pages in parallel for efficient content extraction via [Reader API](https://jina.ai/reader) | Optional* |
 | `parallel_search_web` | Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives via [Reader API](https://jina.ai/reader) | Yes |
 | `parallel_search_arxiv` | Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles via [Reader API](https://jina.ai/reader) | Yes |
 | `sort_by_relevance` | Rerank documents by relevance to a query via [Reranker API](https://jina.ai/reranker) | Yes |

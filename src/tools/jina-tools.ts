@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { stringify as yamlStringify } from "yaml";
-import { normalizeUrl } from "../utils/url-normalizer.js";
+
 import { handleApiError, checkBearerToken } from "../utils/api-error-handler.js";
 import { lazyGreedySelection, lazyGreedySelectionWithSaturation } from "../utils/submodular-optimization.js";
 import { downloadImages } from "../utils/image-downloader.js";
@@ -67,9 +67,9 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Guess datetime from URL tool - analyzes web pages for datetime information
 	server.tool(
 		"guess_datetime_url",
-		"Analyze a web page to determine when it was last updated or published. This tool examines HTTP headers, HTML metadata, Schema.org data, visible dates, JavaScript timestamps, HTML comments, Git information, RSS/Atom feeds, sitemaps, and international date formats to provide the most accurate update time with confidence scores. Returns the best guess timestamp and confidence level.",
+		"Guess the last updated or published datetime of a web page. This tool examines HTTP headers, HTML metadata, Schema.org data, visible dates, JavaScript timestamps, HTML comments, Git information, RSS/Atom feeds, sitemaps, and international date formats to provide the most accurate update time with confidence scores. Returns the best guess timestamp and confidence level.",
 		{
-			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to analyze for datetime information")
+			url: z.string().url().describe("The complete HTTP/HTTPS URL of the webpage to guess datetime information")
 		},
 		async ({ url }: { url: string }) => {
 			try {
@@ -166,7 +166,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Read URL tool - converts any URL to markdown via r.jina.ai
 	server.tool(
 		"read_url",
-		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data.",
+		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data. 💡 Tip: Use `parallel_read_url` if you need to read multiple web pages simultaneously.",
 		{
 			url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article')"),
 			withAllLinks: z.boolean().optional().describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
@@ -175,97 +175,22 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 		async ({ url, withAllLinks, withAllImages }: { url: string; withAllLinks?: boolean; withAllImages?: boolean }) => {
 			try {
 				const props = getProps();
-				// Normalize the URL first
-				const normalizedUrl = normalizeUrl(url);
-				if (!normalizedUrl) {
-					throw new Error("Invalid or unsupported URL");
-				}
 
-				const headers: Record<string, string> = {
-					'Accept': 'application/json',
-					'Content-Type': 'application/json',
-					'X-Md-Link-Style': 'discarded',
-				};
+				// Import the utility function
+				const { readUrlFromConfig } = await import("../utils/read.js");
 
-				// Add Authorization header if bearer token is available
-				if (props.bearerToken) {
-					headers['Authorization'] = `Bearer ${props.bearerToken}`;
-				}
+				// Use the shared utility function
+				const result = await readUrlFromConfig({ url, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }, props.bearerToken);
 
-				if (withAllLinks) {
-					headers['X-With-Links-Summary'] = 'all';
-				}
-
-				if (withAllImages) {
-					headers['X-With-Images-Summary'] = 'true';
-				} else {
-					headers['X-Retain-Images'] = 'none';
-				}
-
-				const response = await fetch('https://r.jina.ai/', {
-					method: 'POST',
-					headers,
-					body: JSON.stringify({ url: normalizedUrl }),
-				});
-
-				if (!response.ok) {
-					return handleApiError(response, "URL conversion");
-				}
-
-				const data = await response.json() as any;
-
-				if (!data.data) {
-					throw new Error("Invalid response data from r.jina.ai");
-				}
-
-				const responseContent = [];
-
-
-				// Add structured data as JSON if requested via parameters
-				const structuredData: any = {};
-
-				if (data.data.url) {
-					structuredData.url = data.data.url;
-				}
-
-				if (data.data.title) {
-					structuredData.title = data.data.title;
-				}
-
-				if (withAllLinks && data.data.links) {
-					// Transform links from [anchorText, url] arrays to {anchorText, url} objects
-					structuredData.links = data.data.links.map((link: [string, string]) => ({
-						anchorText: link[0],
-						url: link[1]
-					}));
-				}
-
-				if (withAllImages && data.data.images) {
-					structuredData.images = data.data.images;
-				}
-
-				// Add structured data if any exists
-				if (Object.keys(structuredData).length > 0) {
-					responseContent.push({
-						type: "text" as const,
-						text: yamlStringify(structuredData),
-					});
-				}
-
-				// Add main content
-				if (data.data.content) {
-					responseContent.push({
-						type: "text" as const,
-						text: String(data.data.content),
-					});
-				}
-
-				if (responseContent.length === 0) {
-					throw new Error("No content available from the URL");
+				if ('error' in result) {
+					return createErrorResponse(result.error);
 				}
 
 				return {
-					content: responseContent,
+					content: [{
+						type: "text" as const,
+						text: yamlStringify(result.structuredData),
+					}],
 				};
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -276,7 +201,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Search Web tool - search the web using Jina Search API
 	server.tool(
 		"search_web",
-		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content.",
+		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content. 💡 Tip: Use `parallel_search_web` if you need to run multiple searches simultaneously.",
 		{
 			query: z.string().describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe')"),
 			num: z.number().default(30).describe("Maximum number of search results to return, between 1-100"),
@@ -364,7 +289,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Search Arxiv tool - search arxiv papers using Jina Search API
 	server.tool(
 		"search_arxiv",
-		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc.",
+		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc. 💡 Tip: Use `parallel_search_arxiv` if you need to run multiple arXiv searches simultaneously.",
 		{
 			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
 			num: z.number().default(30).describe("Maximum number of academic papers to return, between 1-100"),
@@ -477,7 +402,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Web tool - execute multiple web searches in parallel
 	server.tool(
 		"parallel_search_web",
-		"Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide multiple search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself.",
+		"Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide multiple search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself. 💡 Use this when you need to gather information from multiple search angles at once for efficiency.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Search terms or keywords to find relevant web content"),
@@ -498,13 +423,17 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
+				const uniqueSearches = searches.filter((search, index, self) =>
+					index === self.findIndex(s => s.query === search.query)
+				);
+
 				// Use the common web search function
 				const webSearchFunction = async (searchArgs: SearchWebArgs) => {
 					return executeWebSearch(searchArgs, props.bearerToken);
 				};
 
 				// Execute parallel searches using utility
-				const results = await executeParallelSearches(searches, webSearchFunction, { timeout });
+				const results = await executeParallelSearches(uniqueSearches, webSearchFunction, { timeout });
 
 				return {
 					content: formatParallelSearchResultsToContentItems(results),
@@ -518,7 +447,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Arxiv tool - execute multiple arXiv searches in parallel
 	server.tool(
 		"parallel_search_arxiv",
-		"Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide multiple search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself.",
+		"Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide multiple search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself. 💡 Use this when you need to explore multiple research directions simultaneously for efficiency.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Academic search terms, author names, or research topics"),
@@ -536,16 +465,67 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
+				const uniqueSearches = searches.filter((search, index, self) =>
+					index === self.findIndex(s => s.query === search.query)
+				);
+
 				// Use the common arXiv search function
 				const arxivSearchFunction = async (searchArgs: SearchArxivArgs) => {
 					return executeArxivSearch(searchArgs, props.bearerToken);
 				};
 
 				// Execute parallel searches using utility
-				const results = await executeParallelSearches(searches, arxivSearchFunction, { timeout });
+				const results = await executeParallelSearches(uniqueSearches, arxivSearchFunction, { timeout });
 
 				return {
 					content: formatParallelSearchResultsToContentItems(results),
+				};
+			} catch (error) {
+				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		},
+	);
+
+	// Parallel Read URL tool - execute multiple URL reads in parallel
+	server.tool(
+		"parallel_read_url",
+		"Read multiple web pages in parallel to extract clean content efficiently. For best results, provide multiple URLs that you need to extract simultaneously. This is useful for comparing content across multiple sources or gathering information from multiple pages at once. 💡 Use this when you need to analyze multiple sources simultaneously for efficiency.",
+		{
+			urls: z.array(z.object({
+				url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert"),
+				withAllLinks: z.boolean().default(false).describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
+				withAllImages: z.boolean().default(false).describe("Set to true to extract and return all images found on the page as structured data")
+			})).max(5).describe("Array of URL configurations to read in parallel (maximum 5 URLs for optimal performance)"),
+			timeout: z.number().default(30000).describe("Timeout in milliseconds for all URL reads")
+		},
+		async ({ urls, timeout }: { urls: Array<{ url: string; withAllLinks: boolean; withAllImages: boolean }>; timeout: number }) => {
+			try {
+				const props = getProps();
+
+				const uniqueUrls = urls.filter((urlConfig, index, self) =>
+					index === self.findIndex(u => u.url === urlConfig.url)
+				);
+
+				// Import the utility functions
+				const { executeParallelUrlReads } = await import("../utils/read.js");
+
+				// Execute parallel URL reads using the utility
+				const results = await executeParallelUrlReads(uniqueUrls, props.bearerToken, timeout);
+
+				// Format results for consistent output
+				const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+				for (const result of results) {
+					if ('success' in result && result.success) {
+						contentItems.push({
+							type: "text" as const,
+							text: yamlStringify(result.structuredData),
+						});
+					}
+				}
+
+				return {
+					content: contentItems,
 				};
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
