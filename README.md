@@ -74,6 +74,32 @@ Some MCP clients have local caching and do not actively update tool definitions.
 
 ![update local mcp clients](/.readme/image2.png)
 
+### Claude Desktop says "Server disconnected" on Windows
+
+Cursor and Claude Desktop (Windows) [have a bug](https://www.npmjs.com/package/mcp-remote#:~:text=Note%3A%20Cursor,env%20vars%0A%20%20%7D%0A%7D%2C) where spaces inside args aren't escaped when it invokes npx, which ends up mangling these values. You can work around it using:
+
+```json
+{
+  // rest of config...
+  "args": [
+    "mcp-remote",
+    "https://remote.mcp.server/sse",
+    "--header",
+    "Authorization:${AUTH_HEADER}" // note no spaces around ':'
+  ],
+  "env": {
+    "AUTH_HEADER": "Bearer <JINA_API_KEY>" // spaces OK in env vars
+  }
+},
+```
+
+### Cursor shows a red dot on this MCP status
+
+[Likely a UI bug from Cursor](https://forum.cursor.com/t/why-is-my-mcp-red/100518), but the MCP works correctly without any problem. You can toggle off/on to "restart" the MCP if you find the red dot annoying (fact is, since you are using this as a remote MCP, it's not a real "server restart" but mostly a local proxy restart).
+
+![cursor shows red dot](/.readme/image3.jpg)
+
+
 ## Developer Guide
 
 ### Local Development
