@@ -83,7 +83,7 @@ Cursor and Claude Desktop (Windows) [have a bug](https://www.npmjs.com/package/m
   // rest of config...
   "args": [
     "mcp-remote",
-    "https://remote.mcp.server/sse",
+    "https://mcp.jina.ai/sse",
     "--header",
     "Authorization:${AUTH_HEADER}" // note no spaces around ':'
   ],
@@ -99,6 +99,17 @@ Cursor and Claude Desktop (Windows) [have a bug](https://www.npmjs.com/package/m
 
 ![cursor shows red dot](/.readme/image3.jpg)
 
+### My LLM never uses some tools
+
+Assuming all tools are enabled in your MCP client but your LLM still never uses some tools, it's likely your LLM favors some tools over others, which is pretty common when an LLM is trained with a specific set of tools. For example, we rarely see `parallel_*` tools being used organically by LLMs unless they are explicitly instructed to do so. In Cursor, you can add the following rule to your `.mdc` file:
+
+```text
+---
+alwaysApply: true
+---
+
+When you are uncertain about knowledge, or the user doubts your answer, always use Jina MCP tools to search and read best practices and latest information. Use search_arxiv and read_url together when questions relate to theoretical deep learning or algorithm details. search_web and search_arxiv cannot be used alone - always combine with read_url or parallel_read_url to read from multiple sources. Remember: every search must be complemented with read_url to read the source URL content. For maximum efficiency, use parallel_* versions of search and read when necessary.
+```
 
 ## Developer Guide
 
