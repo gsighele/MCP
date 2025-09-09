@@ -58,6 +58,13 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
 }
 ```
 
+For Claude Code:
+
+```bash
+claude mcp add --transport sse jina https://mcp.jina.ai/sse \
+  --header "Authorization : Bearer ${JINA_API_KEY}"
+```
+
 ## Troubleshooting
 
 ### I got stuck in a tool calling loop - what happened?
@@ -101,7 +108,7 @@ Cursor and Claude Desktop (Windows) [have a bug](https://www.npmjs.com/package/m
 
 ### My LLM never uses some tools
 
-Assuming all tools are enabled in your MCP client but your LLM still never uses some tools, it's likely your LLM favors some tools over others, which is pretty common when an LLM is trained with a specific set of tools. For example, we rarely see `parallel_*` tools being used organically by LLMs unless they are explicitly instructed to do so. In Cursor, you can add the following rule to your `.mdc` file:
+Assuming all tools are enabled in your MCP client but your LLM still never uses some tools, it's likely your LLM favors some tools over others, which is pretty common when an LLM is trained with a specific set of tools. For example, we rarely see `parallel_*` tools being used organically by LLMs unless they are explicitly instructed to do so. [Some research says LLMs must be trained to use `parallel_*`](https://arxiv.org/abs/2508.09303). In Cursor, you can add the following rule to your `.mdc` file:
 
 ```text
 ---
