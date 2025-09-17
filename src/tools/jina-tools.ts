@@ -166,32 +166,75 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Read URL tool - converts any URL to markdown via r.jina.ai
 	server.tool(
 		"read_url",
-		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data. 💡 Tip: Use `parallel_read_url` if you need to read multiple web pages simultaneously.",
+		"Extract and convert web page content to clean, readable markdown format. Perfect for reading articles, documentation, blog posts, or any web content. Use this when you need to analyze text content from websites, bypass paywalls, or get structured data.",
 		{
-			url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article')"),
+			url: z.union([z.string().url(), z.array(z.string().url())]).describe("The complete URL of the webpage or PDF file to read and convert (e.g., 'https://example.com/article'). Can be a single URL string or an array of URLs for parallel reading."),
 			withAllLinks: z.boolean().optional().describe("Set to true to extract and return all hyperlinks found on the page as structured data"),
 			withAllImages: z.boolean().optional().describe("Set to true to extract and return all images found on the page as structured data")
 		},
-		async ({ url, withAllLinks, withAllImages }: { url: string; withAllLinks?: boolean; withAllImages?: boolean }) => {
+		async ({ url, withAllLinks, withAllImages }: { url: string | string[]; withAllLinks?: boolean; withAllImages?: boolean }) => {
 			try {
 				const props = getProps();
 
-				// Import the utility function
-				const { readUrlFromConfig } = await import("../utils/read.js");
+				// Handle single URL or single-element array
+				if (typeof url === 'string' || (Array.isArray(url) && url.length === 1)) {
+					const singleUrl = typeof url === 'string' ? url : url[0];
 
-				// Use the shared utility function
-				const result = await readUrlFromConfig({ url, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }, props.bearerToken);
+					// Import the utility function
+					const { readUrlFromConfig } = await import("../utils/read.js");
 
-				if ('error' in result) {
-					return createErrorResponse(result.error);
+					// Use the shared utility function
+					const result = await readUrlFromConfig({ url: singleUrl, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }, props.bearerToken);
+
+					if ('error' in result) {
+						return createErrorResponse(result.error);
+					}
+
+					return {
+						content: [{
+							type: "text" as const,
+							text: yamlStringify(result.structuredData),
+						}],
+					};
 				}
 
-				return {
-					content: [{
-						type: "text" as const,
-						text: yamlStringify(result.structuredData),
-					}],
-				};
+				// Handle multiple URLs with parallel reading
+				if (Array.isArray(url) && url.length > 1) {
+					const urls = url.map(u => ({ url: u, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }));
+
+					const uniqueUrls = urls.filter((urlConfig, index, self) =>
+						index === self.findIndex(u => u.url === urlConfig.url)
+					);
+
+					// Import the utility functions
+					const { executeParallelUrlReads } = await import("../utils/read.js");
+
+					// Execute parallel URL reads using the utility
+					const results = await executeParallelUrlReads(uniqueUrls, props.bearerToken, 30000);
+
+					// Format results for consistent output
+					const contentItems: Array<{ type: 'text'; text: string }> = [];
+
+					for (const result of results) {
+						if ('success' in result && result.success) {
+							contentItems.push({
+								type: "text" as const,
+								text: yamlStringify(result.structuredData),
+							});
+						} else if ('error' in result) {
+							contentItems.push({
+								type: "text" as const,
+								text: `Error reading ${result.url}: ${result.error}`,
+							});
+						}
+					}
+
+					return {
+						content: contentItems,
+					};
+				}
+
+				return createErrorResponse("Invalid URL format");
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -201,16 +244,16 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Search Web tool - search the web using Jina Search API
 	server.tool(
 		"search_web",
-		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content. 💡 Tip: Use `parallel_search_web` if you need to run multiple searches simultaneously.",
+		"Search the entire web for current information, news, articles, and websites. Use this when you need up-to-date information, want to find specific websites, research topics, or get the latest news. Ideal for answering questions about recent events, finding resources, or discovering relevant content.",
 		{
-			query: z.string().describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe')"),
+			query: z.union([z.string(), z.array(z.string())]).describe("Search terms or keywords to find relevant web content (e.g., 'climate change news 2024', 'best pizza recipe'). Can be a single query string or an array of queries for parallel search."),
 			num: z.number().default(30).describe("Maximum number of search results to return, between 1-100"),
 			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y"),
 			location: z.string().optional().describe("Location for search results, e.g., 'London', 'New York', 'Tokyo'"),
 			gl: z.string().optional().describe("Country code, e.g., 'dz' for Algeria"),
 			hl: z.string().optional().describe("Language code, e.g., 'zh-cn' for Simplified Chinese")
 		},
-		async ({ query, num, tbs, location, gl, hl }: SearchWebArgs) => {
+		async ({ query, num, tbs, location, gl, hl }: { query: string | string[]; num: number; tbs?: string; location?: string; gl?: string; hl?: string }) => {
 			try {
 				const props = getProps();
 
@@ -219,11 +262,36 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
-				const searchResult = await executeWebSearch({ query, num, tbs, location, gl, hl }, props.bearerToken);
+				// Handle single query or single-element array
+				if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
+					const singleQuery = typeof query === 'string' ? query : query[0];
+					const searchResult = await executeWebSearch({ query: singleQuery, num, tbs, location, gl, hl }, props.bearerToken);
 
-				return {
-					content: formatSingleSearchResultToContentItems(searchResult),
-				};
+					return {
+						content: formatSingleSearchResultToContentItems(searchResult),
+					};
+				}
+
+				// Handle multiple queries with parallel search
+				if (Array.isArray(query) && query.length > 1) {
+					const searches = query.map(q => ({ query: q, num, tbs, location, gl, hl }));
+
+					const uniqueSearches = searches.filter((search, index, self) =>
+						index === self.findIndex(s => s.query === search.query)
+					);
+
+					const webSearchFunction = async (searchArgs: SearchWebArgs) => {
+						return executeWebSearch(searchArgs, props.bearerToken);
+					};
+
+					const results = await executeParallelSearches(uniqueSearches, webSearchFunction, { timeout: 30000 });
+
+					return {
+						content: formatParallelSearchResultsToContentItems(results),
+					};
+				}
+
+				return createErrorResponse("Invalid query format");
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -289,13 +357,13 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Search Arxiv tool - search arxiv papers using Jina Search API
 	server.tool(
 		"search_arxiv",
-		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc. 💡 Tip: Use `parallel_search_arxiv` if you need to run multiple arXiv searches simultaneously.",
+		"Search academic papers and preprints on arXiv repository. Perfect for finding research papers, scientific studies, technical papers, and academic literature. Use this when researching scientific topics, looking for papers by specific authors, or finding the latest research in fields like AI, physics, mathematics, computer science, etc.",
 		{
-			query: z.string().describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization')"),
+			query: z.union([z.string(), z.array(z.string())]).describe("Academic search terms, author names, or research topics (e.g., 'transformer neural networks', 'Einstein relativity', 'machine learning optimization'). Can be a single query string or an array of queries for parallel search."),
 			num: z.number().default(30).describe("Maximum number of academic papers to return, between 1-100"),
 			tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y")
 		},
-		async ({ query, num, tbs }: SearchArxivArgs) => {
+		async ({ query, num, tbs }: { query: string | string[]; num: number; tbs?: string }) => {
 			try {
 				const props = getProps();
 
@@ -304,11 +372,36 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 					return tokenError;
 				}
 
-				const searchResult = await executeArxivSearch({ query, num, tbs }, props.bearerToken);
+				// Handle single query or single-element array
+				if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
+					const singleQuery = typeof query === 'string' ? query : query[0];
+					const searchResult = await executeArxivSearch({ query: singleQuery, num, tbs }, props.bearerToken);
 
-				return {
-					content: formatSingleSearchResultToContentItems(searchResult),
-				};
+					return {
+						content: formatSingleSearchResultToContentItems(searchResult),
+					};
+				}
+
+				// Handle multiple queries with parallel search
+				if (Array.isArray(query) && query.length > 1) {
+					const searches = query.map(q => ({ query: q, num, tbs }));
+
+					const uniqueSearches = searches.filter((search, index, self) =>
+						index === self.findIndex(s => s.query === search.query)
+					);
+
+					const arxivSearchFunction = async (searchArgs: SearchArxivArgs) => {
+						return executeArxivSearch(searchArgs, props.bearerToken);
+					};
+
+					const results = await executeParallelSearches(uniqueSearches, arxivSearchFunction, { timeout: 30000 });
+
+					return {
+						content: formatParallelSearchResultsToContentItems(results),
+					};
+				}
+
+				return createErrorResponse("Invalid query format");
 			} catch (error) {
 				return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -402,7 +495,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Web tool - execute multiple web searches in parallel
 	server.tool(
 		"parallel_search_web",
-		"Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide multiple search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself. 💡 Use this when you need to gather information from multiple search angles at once for efficiency.",
+		"Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives. For best results, provide multiple search queries that explore different aspects of your topic. You can use expand_query to help generate diverse queries, or create them yourself.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Search terms or keywords to find relevant web content"),
@@ -447,7 +540,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Search Arxiv tool - execute multiple arXiv searches in parallel
 	server.tool(
 		"parallel_search_arxiv",
-		"Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide multiple search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself. 💡 Use this when you need to explore multiple research directions simultaneously for efficiency.",
+		"Run multiple arXiv searches in parallel for comprehensive research coverage and diverse academic angles. For best results, provide multiple search queries that explore different research angles and methodologies. You can use expand_query to help generate diverse queries, or create them yourself.",
 		{
 			searches: z.array(z.object({
 				query: z.string().describe("Academic search terms, author names, or research topics"),
@@ -489,7 +582,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any) {
 	// Parallel Read URL tool - execute multiple URL reads in parallel
 	server.tool(
 		"parallel_read_url",
-		"Read multiple web pages in parallel to extract clean content efficiently. For best results, provide multiple URLs that you need to extract simultaneously. This is useful for comparing content across multiple sources or gathering information from multiple pages at once. 💡 Use this when you need to analyze multiple sources simultaneously for efficiency.",
+		"Read multiple web pages in parallel to extract clean content efficiently. For best results, provide multiple URLs that you need to extract simultaneously. This is useful for comparing content across multiple sources or gathering information from multiple pages at once.",
 		{
 			urls: z.array(z.object({
 				url: z.string().url().describe("The complete URL of the webpage or PDF file to read and convert"),

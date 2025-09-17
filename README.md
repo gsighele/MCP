@@ -65,6 +65,18 @@ claude mcp add --transport sse jina https://mcp.jina.ai/sse \
   --header "Authorization : Bearer ${JINA_API_KEY}"
 ```
 
+For OpenAI Codex: find `~/.codex/config.toml` and add the following:
+```toml
+[mcp_servers.jina-mcp-server]
+command = "npx"
+args = [
+    "-y", 
+    "mcp-remote", 
+    "https://mcp.jina.ai/sse",
+    "--header",
+    "Authorization: Bearer ${JINA_API_KEY}"]
+```
+
 ## Troubleshooting
 
 ### I got stuck in a tool calling loop - what happened?
